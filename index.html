@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///Users/thepparit/Downloads/index_2.html -->
+<!-- saved from url=(0046)file:///Users/thepparit/Downloads/index_3.html -->
 <html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -494,6 +494,49 @@ function runFFT(){
   });
 }
 
+// ── Bluestein FFT — exact N-point DFT for any N (matches numpy.fft exactly) ──
+function bluesteinFFT(xr, xi, inverse=false){
+  const N=xr.length;
+  const sign=inverse?1:-1;
+  // Chirp: W[n]=e^{i*sign*π*n²/N}
+  const wr=new Float64Array(N), wi=new Float64Array(N);
+  for(let n=0;n<N;n++){
+    const a=sign*Math.PI*n*n/N;
+    wr[n]=Math.cos(a); wi[n]=Math.sin(a);
+  }
+  const M=nextPow2(2*N-1);
+  // a[n] = x[n]*W[n]
+  const ar=new Float64Array(M), ai=new Float64Array(M);
+  for(let n=0;n<N;n++){
+    ar[n]=xr[n]*wr[n]-xi[n]*wi[n];
+    ai[n]=xr[n]*wi[n]+xi[n]*wr[n];
+  }
+  // b: chirp kernel conj(W[n]) with wrap-around
+  const br=new Float64Array(M), bi=new Float64Array(M);
+  for(let n=0;n<N;n++){
+    br[n]=wr[n]; bi[n]=-wi[n];
+    if(n>0){br[M-n]=wr[n]; bi[M-n]=-wi[n];}
+  }
+  // Convolution: FFT(a)*FFT(b), then IFFT
+  fft(ar,ai); fft(br,bi);
+  for(let i=0;i<M;i++){
+    const re=ar[i]*br[i]-ai[i]*bi[i];
+    const im=ar[i]*bi[i]+ai[i]*br[i];
+    ar[i]=re; ai[i]=im;
+  }
+  for(let i=0;i<M;i++) ai[i]=-ai[i];
+  fft(ar,ai);
+  for(let i=0;i<M;i++){ar[i]/=M; ai[i]=-ai[i]/M;}
+  // Multiply by W[k] and scale
+  const yr=new Float64Array(N), yi=new Float64Array(N);
+  const sc=inverse?1/N:1;
+  for(let k=0;k<N;k++){
+    yr[k]=(ar[k]*wr[k]-ai[k]*wi[k])*sc;
+    yi[k]=(ar[k]*wi[k]+ai[k]*wr[k])*sc;
+  }
+  return {yr,yi};
+}
+
 // ── Apply Filter per Component ────────────────────────────────────────────────
 function applyFilter(comp){
   const dt=parseFloat(document.getElementById('dt').value)||0.005;
@@ -513,24 +556,30 @@ function applyFilter(comp){
   if(lpOn) parts.push(`LP<${lpFreq.toFixed(3)}Hz`);
   const flabel=parts.join(' + ');
 
-  // ── Filter via FFT masking — use N-resolution to match Python ──
+  // ── Exact N-point DFT via Bluestein (matches Python numpy.fft exactly) ──
   const N=data.length;
-  const {re,im,Np}=rfft(data);
-  const halfNp=Math.floor(Np/2)+1;
-
-  // Build mask at N-resolution (df=fs/N) — same as Python numpy
   const halfN=Math.floor(N/2)+1;
+
+  // Forward N-point DFT
+  const {yr:Xr, yi:Xi}=bluesteinFFT(Float64Array.from(data), new Float64Array(N));
+
+  // Build mask at N-resolution (df=fs/N) — identical to Python
   const freqsN=new Float64Array(halfN);
   for(let k=0;k<halfN;k++) freqsN[k]=k*fs/N;
   const maskN=buildMask(freqsN,hpOn,hpFreq,lpOn,lpFreq,taper);
 
-  // Map N-resolution mask to Np-resolution FFT bins
-  const reM=re.slice(),imM=im.slice();
-  for(let j=0;j<halfNp;j++){
-    const k=Math.min(Math.round(j*N/Np),halfN-1);
-    reM[j]*=maskN[k]; imM[j]*=maskN[k];
+  // Apply mask — preserve Hermitian symmetry for real IDFT
+  const Yr=Xr.slice(), Yi=Xi.slice();
+  for(let k=0;k<halfN;k++){
+    Yr[k]*=maskN[k]; Yi[k]*=maskN[k];
   }
-  const dataFilt=irfft(reM,imM,Np,N);
+  for(let k=1;k<halfN-(N%2===0?1:0);k++){
+    Yr[N-k]=Yr[k]; Yi[N-k]=-Yi[k];
+  }
+
+  // Inverse N-point DFT
+  const {yr:dataFiltArr}=bluesteinFFT(Yr,Yi,true);
+  const dataFilt=dataFiltArr;
 
   const pga_o=Math.max(...Array.from(data).map(Math.abs));
   const pga_f=Math.max(...Array.from(dataFilt).map(Math.abs));
