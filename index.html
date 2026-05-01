@@ -27,9 +27,8 @@ input[type=checkbox]{margin-right:6px}
 .btn-orange{background:#E65100;color:white}
 .btn:hover{opacity:0.85}
 .btn:disabled{opacity:0.4;cursor:not-allowed}
-.upload-area{border:2px dashed #BDBDBD;border-radius:8px;padding:1.5rem;text-align:center;cursor:pointer;background:white;transition:border-color 0.2s}
+.upload-area{border:2px dashed #BDBDBD;border-radius:8px;padding:1.5rem;text-align:center;cursor:pointer;background:white;transition:border-color 0.2s;display:block}
 .upload-area:hover{border-color:#1565C0}
-.upload-area input{display:none}
 .upload-icon{font-size:2rem;margin-bottom:0.5rem}
 .upload-text{font-size:0.82rem;color:#777}
 .metrics{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:1rem}
@@ -68,11 +67,11 @@ input[type=checkbox]{margin-right:6px}
 
   <div class="section">
     <div class="section-title">Load Signal File</div>
-    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
-      <input type="file" id="fileInput" accept=".csv,.txt,.dat,.out" onchange="loadFile(event)">
+    <label class="upload-area" for="fileInput">
+      <input type="file" id="fileInput" accept=".csv,.txt,.dat,.out" onchange="loadFile(event)" style="display:none">
       <div class="upload-icon">&#128194;</div>
       <div class="upload-text">Click to upload CSV / TXT / DAT</div>
-    </div>
+    </label>
     <div id="file-info"></div>
   </div>
 
@@ -367,20 +366,34 @@ function computeFFT(data,fs,windowType='hann',ymode='linear',oneSided=true){
   const Np=nextPow2(N);
   const win=makeWindow(windowType,N);
   const winScale=win.reduce((a,b)=>a+b,0);
+
+  // Zero-pad to power of 2 for fast FFT
   const re=new Float64Array(Np);
   const im=new Float64Array(Np);
   for(let i=0;i<N;i++){re[i]=data[i]*win[i];im[i]=0;}
   fft(re,im);
-  const half=oneSided?Math.floor(Np/2):Np;
-  const freqs=new Float64Array(half);
-  const amp=new Float64Array(half);
-  for(let k=0;k<half;k++){
-    freqs[k]=k*fs/Np;
-    let a=(2/winScale)*Math.sqrt(re[k]*re[k]+im[k]*im[k]);
-    if(!oneSided) a/=2;
-    if(ymode==='db') a=20*Math.log10(Math.max(a,1e-12));
-    else if(ymode==='psd') a=(a*a)/(fs*winScale);
-    amp[k]=a;
+
+  // ── Resample to N-resolution — matches Python numpy.fft exactly ──
+  // Python: N bins at df=fs/N
+  // JS naive: Np bins at df=fs/Np  ← causes peak shift
+  // Fix: interpolate zero-padded spectrum back to N/2 bins at k*fs/N
+  const halfN  = Math.floor(N/2);
+  const halfNp = Math.floor(Np/2);
+  const freqs  = new Float64Array(halfN);
+  const amp    = new Float64Array(halfN);
+
+  for(let k=0;k<halfN;k++){
+    freqs[k] = k*fs/N;           // exact match to Python bin frequency
+    const binF = k*Np/N;         // fractional position in zero-padded spectrum
+    const binL = Math.min(Math.floor(binF), halfNp-1);
+    const binR = Math.min(binL+1, halfNp-1);
+    const t    = binF - Math.floor(binF);
+    const aL   = (2/winScale)*Math.sqrt(re[binL]*re[binL]+im[binL]*im[binL]);
+    const aR   = (2/winScale)*Math.sqrt(re[binR]*re[binR]+im[binR]*im[binR]);
+    let a      = (1-t)*aL + t*aR;
+    if(ymode==='db')  a = 20*Math.log10(Math.max(a,1e-12));
+    else if(ymode==='psd') a = (a*a)/(fs*winScale);
+    amp[k] = a;
   }
   return {freqs,amp,re,im,Np,winScale};
 }
@@ -443,7 +456,6 @@ function runFFT(){
   const peakRows=[];
   const comps=Object.entries(compData);
   const n=comps.length;
-  const ylabel={'linear':'Amplitude','db':'Magnitude (dB)','psd':'PSD (units²/Hz)'}[ymode];
 
   const layout={
     ...PLT,
