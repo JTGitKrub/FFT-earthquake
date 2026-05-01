@@ -205,10 +205,6 @@ def root():
             "health": "/health",
             "analyze": "POST /analyze"}
 
-
-@app.get("/health", tags=["System"])
-def health():
-    ...
 @app.get("/health", tags=["System"])
 def health():
     """Check API status"""
