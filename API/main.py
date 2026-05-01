@@ -198,7 +198,17 @@ class AnalyzeResponse(BaseModel):
 # ══════════════════════════════════════════════════════════════════════════════
 #  Endpoints
 # ══════════════════════════════════════════════════════════════════════════════
+@app.get("/")
+def root():
+    return {"message": "Seismic Signal Analyzer API — Chiang Mai University",
+            "docs": "/docs",
+            "health": "/health",
+            "analyze": "POST /analyze"}
 
+
+@app.get("/health", tags=["System"])
+def health():
+    ...
 @app.get("/health", tags=["System"])
 def health():
     """Check API status"""
