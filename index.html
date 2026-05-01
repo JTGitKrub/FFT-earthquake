@@ -309,16 +309,37 @@ function extractComponents(){
   plotTimeSeries();
 }
 
-// ── Time Series ───────────────────────────────────────────────────────────────
+// ── Time Series — แยก subplot ทีละ Component ─────────────────────────────────
 function plotTimeSeries(){
-  const traces=Object.entries(compData).map(([c,d])=>({
-    x:timeArr,y:d,mode:'lines',name:c,
-    line:{color:COLORS[c]||'#1565C0',width:0.8}}));
-  const n=Object.keys(compData).length;
-  Plotly.newPlot('plot-time',traces,{
-    ...PLT,height:110*n+60,showlegend:true,
-    title:{text:'Time Series',font:{size:12}}},
-    {responsive:true,displaylogo:false});
+  const comps=Object.entries(compData);
+  const n=comps.length;
+  const traces=[];
+  const layout={
+    ...PLT,
+    height:180*n+60,
+    showlegend:false,
+    grid:{rows:n,columns:1,pattern:'independent'},
+  };
+  comps.forEach(([c,d],i)=>{
+    const xi='x'+(i>0?i+1:'');
+    const yi='y'+(i>0?i+1:'');
+    traces.push({
+      x:timeArr,y:d,mode:'lines',name:c,
+      line:{color:COLORS[c]||'#1565C0',width:0.8},
+      xaxis:xi,yaxis:yi
+    });
+    layout[xi]={...PLT.xaxis,title:i===n-1?'Time (s)':''};
+    layout[yi]={...PLT.yaxis,title:'Acc'};
+    layout['annotations']=layout['annotations']||[];
+    layout['annotations'].push({
+      text:`<b>Component: ${c}</b>`,
+      x:0,xref:'paper',
+      y:1-(i/n)+0.01,yref:'paper',
+      showarrow:false,font:{size:11,color:COLORS[c]||'#1565C0'},
+      xanchor:'left'
+    });
+  });
+  Plotly.newPlot('plot-time',traces,layout,{responsive:true,displaylogo:false});
 }
 
 // ── FFT ───────────────────────────────────────────────────────────────────────
@@ -420,14 +441,26 @@ function runFFT(){
 
   const traces=[];
   const peakRows=[];
-  const n=Object.keys(compData).length;
+  const comps=Object.entries(compData);
+  const n=comps.length;
+  const ylabel={'linear':'Amplitude','db':'Magnitude (dB)','psd':'PSD (units²/Hz)'}[ymode];
 
-  Object.entries(compData).forEach(([comp,data],idx)=>{
+  const layout={
+    ...PLT,
+    height:220*n+80,
+    showlegend:false,
+    grid:{rows:n,columns:1,pattern:'independent'},
+    title:{text:'FFT Spectrum'+(useKO?`  |  KO b=${b}`:''),font:{size:12}},
+  };
+
+  comps.forEach(([comp,data],idx)=>{
     const color=COLORS[comp]||'#1565C0';
+    const xi='x'+(idx>0?idx+1:'');
+    const yi='y'+(idx>0?idx+1:'');
     let {freqs,amp}=computeFFT(data,fs,winType,ymode,oneSided);
-    const mf=[]; const fa=[]; const aa=[];
+    const fa=[],aa=[];
     for(let i=0;i<freqs.length;i++){
-      if(freqs[i]>0){mf.push(i);fa.push(freqs[i]);aa.push(amp[i]);}
+      if(freqs[i]>0){fa.push(freqs[i]);aa.push(amp[i]);}
     }
     let aa2=[...aa];
     if(useKO){
@@ -435,9 +468,21 @@ function runFFT(){
       const aaF=new Float64Array(aa);
       aa2=Array.from(koSmooth(faF,aaF,b));
     }
-    traces.push({x:fa,y:aa2,mode:'lines',name:comp,xaxis:'x',yaxis:'y'+(idx===0?'':'2'),
+    traces.push({x:fa,y:aa2,mode:'lines',name:comp,
+      xaxis:xi,yaxis:yi,
       line:{color,width:1.2},fill:'tozeroy',
       fillcolor:`rgba(${hexRgb(color)},0.08)`});
+
+    layout[xi]={...PLT.xaxis,type:logX?'log':'linear',
+      title:idx===n-1?'Frequency (Hz)':''};
+    layout[yi]={...PLT.yaxis,title:ylabel};
+    layout['annotations']=layout['annotations']||[];
+    layout['annotations'].push({
+      text:`<b>FFT — ${comp}</b>`,
+      x:0,xref:'paper',
+      y:1-(idx/n)+0.01,yref:'paper',
+      showarrow:false,font:{size:11,color},xanchor:'left'
+    });
 
     if(showPk){
       const pct=aa2.reduce((s,v)=>s+v,0)/aa2.length;
@@ -445,20 +490,14 @@ function runFFT(){
       pks.forEach(p=>{
         peakRows.push({comp,freq:fa[p].toFixed(4),amp:aa2[p].toFixed(5)});
         traces.push({x:[fa[p],fa[p]],y:[0,aa2[p]],mode:'lines',
-          line:{color,width:1,dash:'dash'},showlegend:false,
-          xaxis:'x',yaxis:'y'+(idx===0?'':'2')});
+          line:{color,width:1,dash:'dash'},showlegend:false,xaxis:xi,yaxis:yi});
         traces.push({x:[fa[p]],y:[aa2[p]],mode:'markers+text',
           text:[`${fa[p].toFixed(3)}Hz`],textposition:'top right',
           textfont:{size:9,color},marker:{color,size:5},showlegend:false,
-          xaxis:'x',yaxis:'y'+(idx===0?'':'2')});
+          xaxis:xi,yaxis:yi});
       });
     }
   });
-
-  const layout={...PLT,height:200*n+80,showlegend:true,
-    title:{text:'FFT Spectrum'+(useKO?`  |  KO b=${b}`:''),font:{size:12}},
-    xaxis:{...PLT.xaxis,type:logX?'log':'linear',title:'Frequency (Hz)'},
-    yaxis:{...PLT.yaxis,title:ylabel}};
 
   document.getElementById('fft-title').style.display='block';
   Plotly.newPlot('plot-fft',traces,layout,{responsive:true,displaylogo:false});
