@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seismic Signal Analyzer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Georgia',serif;background:#F8F8F6;color:#1A1A1A;font-size:14px}
+header{background:#1565C0;color:white;padding:1rem 1.5rem;display:flex;align-items:center;gap:1rem}
+header h1{font-size:1.2rem;font-weight:700;letter-spacing:-0.02em}
+header p{font-size:0.78rem;opacity:0.8;font-family:monospace;margin-top:2px}
+.layout{display:grid;grid-template-columns:280px 1fr;height:calc(100vh - 64px)}
+.sidebar{background:#F0EFE9;border-right:1px solid #DDD;overflow-y:auto;padding:1rem}
+.main{overflow-y:auto;padding:1rem 1.5rem}
+.section{margin-bottom:1.2rem}
+.section-title{font-size:0.72rem;font-weight:700;color:#1565C0;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem;padding-bottom:0.3rem;border-bottom:1.5px solid #1565C0}
+label{display:block;font-size:0.82rem;color:#555;margin-bottom:2px;margin-top:8px}
+input[type=text],input[type=number],select{width:100%;padding:5px 8px;border:1px solid #CCC;border-radius:4px;background:white;font-size:0.85rem;font-family:Georgia,serif;color:#1A1A1A}
+input[type=checkbox]{margin-right:6px}
+.check-row{display:flex;align-items:center;font-size:0.85rem;margin-top:6px;cursor:pointer}
+.btn{width:100%;padding:7px 12px;border:none;border-radius:5px;font-family:Georgia,serif;font-size:0.85rem;font-weight:700;cursor:pointer;margin-top:6px;transition:opacity 0.15s}
+.btn-primary{background:#1565C0;color:white}
+.btn-success{background:#2E7D32;color:white}
+.btn-orange{background:#E65100;color:white}
+.btn:hover{opacity:0.85}
+.btn:disabled{opacity:0.4;cursor:not-allowed}
+.upload-area{border:2px dashed #BDBDBD;border-radius:8px;padding:1.5rem;text-align:center;cursor:pointer;background:white;transition:border-color 0.2s}
+.upload-area:hover{border-color:#1565C0}
+.upload-area input{display:none}
+.upload-icon{font-size:2rem;margin-bottom:0.5rem}
+.upload-text{font-size:0.82rem;color:#777}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:1rem}
+.metric{background:white;border:1px solid #E0E0E0;border-radius:6px;padding:8px;text-align:center}
+.metric-label{font-size:0.68rem;color:#888;text-transform:uppercase;letter-spacing:0.06em;font-family:monospace}
+.metric-value{font-size:1.1rem;font-weight:700;color:#1565C0;font-family:monospace}
+.tabs{display:flex;border-bottom:2px solid #DDD;margin-bottom:1rem}
+.tab{padding:8px 20px;font-size:0.88rem;font-weight:700;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:#888;transition:color 0.15s}
+.tab.active{color:#1565C0;border-bottom-color:#1565C0}
+.tab-content{display:none}
+.tab-content.active{display:block}
+.info{background:#E3F2FD;border-left:3px solid #1565C0;padding:6px 10px;border-radius:0 4px 4px 0;font-size:0.8rem;color:#0D47A1;margin:6px 0}
+.success{background:#E8F5E9;border-left:3px solid #2E7D32;padding:6px 10px;border-radius:0 4px 4px 0;font-size:0.8rem;color:#1B5E20;margin:6px 0}
+.warning{background:#FFF3E0;border-left:3px solid #E65100;padding:6px 10px;border-radius:0 4px 4px 0;font-size:0.8rem;color:#BF360C;margin:6px 0}
+.plot-title{font-size:0.95rem;font-weight:700;color:#333;margin:1rem 0 0.4rem;border-bottom:1px solid #EEE;padding-bottom:4px}
+.stat-table{width:100%;border-collapse:collapse;font-size:0.82rem;margin:0.5rem 0}
+.stat-table th{background:#F5F5F5;padding:5px 10px;text-align:left;font-weight:700;border-bottom:1px solid #DDD;font-family:monospace;font-size:0.75rem}
+.stat-table td{padding:5px 10px;border-bottom:1px solid #F0F0F0;font-family:monospace}
+.hidden{display:none}
+#file-info{font-size:0.78rem;color:#2E7D32;margin-top:6px;font-family:monospace}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>&#127758; Seismic Signal Analyzer</h1>
+    <p>Patrick's Earthquake Engineering Lab &nbsp;·&nbsp; FFT · Bandpass Filter · Acc/Vel/Disp</p>
+  </div>
+</header>
+
+<div class="layout">
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+
+  <div class="section">
+    <div class="section-title">Load Signal File</div>
+    <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+      <input type="file" id="fileInput" accept=".csv,.txt,.dat,.out" onchange="loadFile(event)">
+      <div class="upload-icon">&#128194;</div>
+      <div class="upload-text">Click to upload CSV / TXT / DAT</div>
+    </div>
+    <div id="file-info"></div>
+  </div>
+
+  <div class="section" id="cfg-section" style="display:none">
+    <div class="section-title">Signal Configuration</div>
+    <label>Time step dt (seconds)</label>
+    <input type="number" id="dt" value="0.005" step="0.0001" min="0.0001">
+    <div id="fs-label" style="font-size:0.78rem;color:#1565C0;font-family:monospace;margin-top:3px">→ fs = 200.00 Hz</div>
+    <label>Acceleration start column (0-based)</label>
+    <input type="number" id="acc-col" value="0" min="0">
+    <label>Component selection</label>
+    <select id="comp-sel">
+      <option value="all">All components</option>
+    </select>
+  </div>
+
+  <div class="section">
+    <div class="section-title">FFT Settings</div>
+    <label>Window function</label>
+    <select id="fft-window"><option>hann</option><option>hamming</option><option>blackman</option><option>rectangular</option></select>
+    <label>Y-axis</label>
+    <select id="ymode"><option value="linear">Amplitude (Linear)</option><option value="db">Amplitude (dB)</option><option value="psd">PSD</option></select>
+    <label class="check-row"><input type="checkbox" id="log-x" checked>Log X-axis</label>
+    <label class="check-row"><input type="checkbox" id="one-sided" checked>One-sided Spectrum</label>
+    <label class="check-row"><input type="checkbox" id="show-peaks" checked>Show Peaks</label>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Konno-Ohmachi</div>
+    <label class="check-row"><input type="checkbox" id="use-ko" checked>Enable Smoothing</label>
+    <label>Bandwidth b</label>
+    <input type="number" id="ko-b" value="40" min="5" max="200">
+  </div>
+
+  <div class="section">
+    <div class="section-title">Bandpass Filter</div>
+    <label class="check-row"><input type="checkbox" id="hp-on" checked>High-Pass (HP)</label>
+    <label>HP frequency (Hz)</label>
+    <input type="number" id="hp-freq" value="0.1" step="0.001">
+    <label class="check-row"><input type="checkbox" id="lp-on" checked>Low-Pass (LP)</label>
+    <label>LP frequency (Hz)</label>
+    <input type="number" id="lp-freq" value="25.0" step="0.001">
+    <label>Taper (Hz)</label>
+    <input type="number" id="taper" value="0.0" step="0.001" min="0">
+  </div>
+
+  <div class="section">
+    <div class="section-title">Acc / Vel / Disp</div>
+    <label>Input type</label>
+    <select id="avd-input"><option>Acceleration (m/s²)</option><option>Velocity (m/s)</option><option>Displacement (m)</option></select>
+    <label>Unit factor</label>
+    <select id="unit-sel" onchange="onUnitChange()">
+      <option value="1">1.0 (no conversion)</option>
+      <option value="9.81" selected>9.81 (g → m/s²)</option>
+      <option value="0.01">0.01 (cm/s² → m/s²)</option>
+      <option value="0.001">0.001 (mm/s² → m/s²)</option>
+      <option value="custom">Custom</option>
+    </select>
+    <input type="number" id="custom-factor" value="1" style="display:none;margin-top:4px">
+    <label class="check-row"><input type="checkbox" id="do-detrend" checked>Detrend</label>
+    <label class="check-row"><input type="checkbox" id="do-demean" checked>Demean</label>
+  </div>
+
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <div id="metrics-row" class="metrics hidden">
+    <div class="metric"><div class="metric-label">Samples</div><div class="metric-value" id="m-samples">—</div></div>
+    <div class="metric"><div class="metric-label">Sampling Rate</div><div class="metric-value" id="m-fs">—</div></div>
+    <div class="metric"><div class="metric-label">Duration</div><div class="metric-value" id="m-dur">—</div></div>
+    <div class="metric"><div class="metric-label">Components</div><div class="metric-value" id="m-comp">—</div></div>
+  </div>
+
+  <div class="tabs">
+    <div class="tab active" onclick="showTab('fft')">&#128202; FFT + Filter</div>
+    <div class="tab" onclick="showTab('avd')">&#128208; Acc / Vel / Disp</div>
+    <div class="tab" onclick="showTab('about')">&#8505; About</div>
+  </div>
+
+  <!-- FFT TAB -->
+  <div class="tab-content active" id="tab-fft">
+    <div id="no-data-msg" class="warning">Upload a signal file to begin analysis.</div>
+
+    <div id="fft-controls" class="hidden">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem">
+        <button class="btn btn-primary" style="width:auto;padding:7px 20px" onclick="runFFT()">&#9889; Compute FFT</button>
+        <button class="btn btn-success" style="width:auto;padding:7px 20px" onclick="runFilter()">&#128260; Apply Filter + Convert</button>
+        <button class="btn btn-orange" style="width:auto;padding:7px 20px" id="json-btn" disabled onclick="exportJSON()">&#128196; Export JSON</button>
+      </div>
+    </div>
+
+    <div class="plot-title" id="ts-title" style="display:none">Time Series</div>
+    <div id="plot-time"></div>
+
+    <div class="plot-title" id="fft-title" style="display:none">FFT Spectrum</div>
+    <div id="plot-fft"></div>
+    <div id="peak-table"></div>
+
+    <div id="filter-results"></div>
+  </div>
+
+  <!-- AVD TAB -->
+  <div class="tab-content" id="tab-avd">
+    <div id="avd-msg" class="warning">Upload a signal file and click Convert.</div>
+    <div id="avd-controls" class="hidden" style="margin-bottom:1rem">
+      <button class="btn btn-primary" style="width:auto;padding:7px 20px" onclick="runAVD()">&#9889; Convert Acc → Vel → Disp</button>
+    </div>
+    <div id="avd-stats"></div>
+    <div id="plot-avd"></div>
+    <div id="avd-export"></div>
+  </div>
+
+  <!-- ABOUT TAB -->
+  <div class="tab-content" id="tab-about" style="max-width:680px">
+    <h2 style="font-size:1.1rem;margin:0.5rem 0 0.3rem">Seismic Signal Analyzer</h2>
+    <p style="color:#555;font-size:0.88rem;margin-bottom:1rem">Patrick's Earthquake Engineering Lab</p>
+    <div class="info">Pure browser app — no server required. All processing runs locally in JavaScript.</div>
+    <br>
+    <table class="stat-table">
+      <tr><th>Feature</th><th>Description</th></tr>
+      <tr><td>FFT</td><td>Radix-2 FFT with Hann/Hamming/Blackman/Rectangular window</td></tr>
+      <tr><td>Konno-Ohmachi</td><td>Standard seismic smoothing (b=40 default)</td></tr>
+      <tr><td>Bandpass Filter</td><td>HP/LP via FFT masking with cosine taper</td></tr>
+      <tr><td>Normalized Plot</td><td>a/PGA between ±1 with peak markers</td></tr>
+      <tr><td>JSON Export</td><td>Normalized acceleration + time for further analysis</td></tr>
+      <tr><td>Acc/Vel/Disp</td><td>Trapezoidal integration from acceleration</td></tr>
+    </table>
+    <br>
+    <table class="stat-table">
+      <tr><th>Columns</th><th>Interpretation</th></tr>
+      <tr><td>1 column</td><td>[ACC]</td></tr>
+      <tr><td>2 columns</td><td>[Time, ACC]</td></tr>
+      <tr><td>3 columns</td><td>[EW, NS, V]</td></tr>
+      <tr><td>4+ columns</td><td>[Time, EW, NS, V, ...]</td></tr>
+    </table>
+  </div>
+
+</div>
+</div>
+
+<script>
+const COLORS = {EW:'#1565C0',NS:'#2E7D32',V:'#6A1B9A',ACC:'#1565C0'};
+const PLT = {plot_bgcolor:'white',paper_bgcolor:'#F8F8F6',
+  font:{family:'Georgia,serif',size:11,color:'#1A1A1A'},
+  margin:{l:55,r:20,t:35,b:45},
+  xaxis:{showgrid:true,gridcolor:'#EEEEEE',linecolor:'#BDBDBD',mirror:true},
+  yaxis:{showgrid:true,gridcolor:'#EEEEEE',linecolor:'#BDBDBD',mirror:true}};
+
+let RAW=null, compData={}, timeArr=null, normData={}, pgaData={};
+
+// ── Tab ──────────────────────────────────────────────────────────────────────
+function showTab(id){
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    t.classList.toggle('active',['fft','avd','about'][i]===id)});
+  document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+}
+
+// ── Unit ─────────────────────────────────────────────────────────────────────
+function onUnitChange(){
+  const v=document.getElementById('unit-sel').value;
+  document.getElementById('custom-factor').style.display=v==='custom'?'block':'none';
+}
+
+// ── dt change ────────────────────────────────────────────────────────────────
+document.getElementById('dt').addEventListener('input',function(){
+  const v=parseFloat(this.value)||0.005;
+  document.getElementById('fs-label').textContent=`→ fs = ${(1/v).toFixed(2)} Hz`;
+});
+
+// ── Load File ────────────────────────────────────────────────────────────────
+function loadFile(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    const text=ev.target.result;
+    const lines=text.split('\n').filter(l=>l.trim()&&!l.trim().startsWith('#'));
+    const delim=lines[0].includes(',')?',':null;
+    const parsed=lines.map(l=>{
+      const parts=delim?l.split(','):l.trim().split(/\s+/);
+      return parts.map(Number).filter(v=>!isNaN(v));
+    }).filter(r=>r.length>0);
+    const ncols=parsed[0].length;
+    RAW=parsed;
+    document.getElementById('file-info').textContent=
+      `✓ ${file.name}  |  ${parsed.length} rows  |  ${ncols} cols`;
+    document.getElementById('cfg-section').style.display='block';
+    document.getElementById('acc-col').max=ncols-1;
+    document.getElementById('no-data-msg').style.display='none';
+    document.getElementById('fft-controls').classList.remove('hidden');
+    document.getElementById('avd-msg').style.display='none';
+    document.getElementById('avd-controls').classList.remove('hidden');
+    updateComponents();
+  };
+  reader.readAsText(file);
+}
+
+function updateComponents(){
+  if(!RAW) return;
+  const ncols=RAW[0].length;
+  const accCol=parseInt(document.getElementById('acc-col').value)||0;
+  const remaining=ncols-accCol;
+  const sel=document.getElementById('comp-sel');
+  sel.innerHTML='';
+  const opts=remaining>=3?['All','EW','NS','V']:['ACC'];
+  opts.forEach(o=>{const op=document.createElement('option');op.value=o;op.textContent=o;sel.appendChild(op);});
+}
+document.getElementById('acc-col').addEventListener('change',updateComponents);
+
+function extractComponents(){
+  const dt=parseFloat(document.getElementById('dt').value)||0.005;
+  const accCol=parseInt(document.getElementById('acc-col').value)||0;
+  const ncols=RAW[0].length;
+  const N=RAW.length;
+  timeArr=Array.from({length:N},(_,i)=>i*dt);
+  if(ncols-accCol>=3){
+    compData={
+      EW: RAW.map(r=>r[accCol]||0),
+      NS: RAW.map(r=>r[accCol+1]||0),
+      V:  RAW.map(r=>r[accCol+2]||0)
+    };
+  } else {
+    compData={ACC: RAW.map(r=>r[accCol]||0)};
+  }
+  const fs=1/dt; const N2=N; const dur=(N2*dt).toFixed(2);
+  document.getElementById('metrics-row').classList.remove('hidden');
+  document.getElementById('m-samples').textContent=N.toLocaleString();
+  document.getElementById('m-fs').textContent=fs.toFixed(1)+' Hz';
+  document.getElementById('m-dur').textContent=dur+' s';
+  document.getElementById('m-comp').textContent=Object.keys(compData).join('/');
+  document.getElementById('ts-title').style.display='block';
+  plotTimeSeries();
+}
+
+// ── Time Series ───────────────────────────────────────────────────────────────
+function plotTimeSeries(){
+  const traces=Object.entries(compData).map(([c,d])=>({
+    x:timeArr,y:d,mode:'lines',name:c,
+    line:{color:COLORS[c]||'#1565C0',width:0.8}}));
+  const n=Object.keys(compData).length;
+  Plotly.newPlot('plot-time',traces,{
+    ...PLT,height:110*n+60,showlegend:true,
+    title:{text:'Time Series',font:{size:12}}},
+    {responsive:true,displaylogo:false});
+}
+
+// ── FFT ───────────────────────────────────────────────────────────────────────
+function fft(re,im){
+  const N=re.length;
+  if(N<=1) return;
+  const re_e=new Float64Array(N/2),im_e=new Float64Array(N/2);
+  const re_o=new Float64Array(N/2),im_o=new Float64Array(N/2);
+  for(let i=0;i<N/2;i++){re_e[i]=re[2*i];im_e[i]=im[2*i];re_o[i]=re[2*i+1];im_o[i]=im[2*i+1];}
+  fft(re_e,im_e); fft(re_o,im_o);
+  for(let k=0;k<N/2;k++){
+    const ang=-2*Math.PI*k/N;
+    const cos=Math.cos(ang),sin=Math.sin(ang);
+    const tr=cos*re_o[k]-sin*im_o[k];
+    const ti=cos*im_o[k]+sin*re_o[k];
+    re[k]=re_e[k]+tr; im[k]=im_e[k]+ti;
+    re[k+N/2]=re_e[k]-tr; im[k+N/2]=im_e[k]-ti;
+  }
+}
+
+function nextPow2(n){let p=1;while(p<n)p*=2;return p;}
+
+function computeFFT(data,fs,windowType='hann',ymode='linear',oneSided=true){
+  const N=data.length;
+  const Np=nextPow2(N);
+  const win=makeWindow(windowType,N);
+  const winScale=win.reduce((a,b)=>a+b,0);
+  const re=new Float64Array(Np);
+  const im=new Float64Array(Np);
+  for(let i=0;i<N;i++){re[i]=data[i]*win[i];im[i]=0;}
+  fft(re,im);
+  const half=oneSided?Math.floor(Np/2):Np;
+  const freqs=new Float64Array(half);
+  const amp=new Float64Array(half);
+  for(let k=0;k<half;k++){
+    freqs[k]=k*fs/Np;
+    let a=(2/winScale)*Math.sqrt(re[k]*re[k]+im[k]*im[k]);
+    if(!oneSided) a/=2;
+    if(ymode==='db') a=20*Math.log10(Math.max(a,1e-12));
+    else if(ymode==='psd') a=(a*a)/(fs*winScale);
+    amp[k]=a;
+  }
+  return {freqs,amp,re,im,Np,winScale};
+}
+
+function makeWindow(type,N){
+  const w=new Float64Array(N);
+  for(let i=0;i<N;i++){
+    if(type==='hann') w[i]=0.5*(1-Math.cos(2*Math.PI*i/(N-1)));
+    else if(type==='hamming') w[i]=0.54-0.46*Math.cos(2*Math.PI*i/(N-1));
+    else if(type==='blackman') w[i]=0.42-0.5*Math.cos(2*Math.PI*i/(N-1))+0.08*Math.cos(4*Math.PI*i/(N-1));
+    else w[i]=1;
+  }
+  return w;
+}
+
+function koSmooth(freqs,amp,b=40){
+  const n=freqs.length;
+  const out=new Float64Array(n);
+  for(let i=0;i<n;i++){
+    const fc=freqs[i];
+    if(fc<=0){out[i]=amp[i];continue;}
+    let wsum=0,wasum=0;
+    for(let j=0;j<n;j++){
+      if(freqs[j]<=0) continue;
+      const ratio=freqs[j]/fc;
+      const arg=b*Math.log10(ratio);
+      let w=Math.abs(arg)<1e-6?1:Math.pow(Math.sin(arg)/arg,4);
+      wsum+=w; wasum+=w*amp[j];
+    }
+    out[i]=wsum>0?wasum/wsum:amp[i];
+  }
+  return out;
+}
+
+function findPeaks(arr,minHeight,minDist){
+  const peaks=[];
+  for(let i=1;i<arr.length-1;i++){
+    if(arr[i]>arr[i-1]&&arr[i]>arr[i+1]&&arr[i]>minHeight){
+      if(peaks.length===0||i-peaks[peaks.length-1]>minDist) peaks.push(i);
+    }
+  }
+  return peaks.sort((a,b)=>arr[b]-arr[a]).slice(0,3);
+}
+
+function runFFT(){
+  if(!RAW){alert('Load a file first');return;}
+  extractComponents();
+  const dt=parseFloat(document.getElementById('dt').value)||0.005;
+  const fs=1/dt;
+  const winType=document.getElementById('fft-window').value;
+  const ymode=document.getElementById('ymode').value;
+  const logX=document.getElementById('log-x').checked;
+  const oneSided=document.getElementById('one-sided').checked;
+  const useKO=document.getElementById('use-ko').checked;
+  const b=parseFloat(document.getElementById('ko-b').value)||40;
+  const showPk=document.getElementById('show-peaks').checked;
+  const ylabel={'linear':'Amplitude','db':'Magnitude (dB)','psd':'PSD (units²/Hz)'}[ymode];
+
+  const traces=[];
+  const peakRows=[];
+  const n=Object.keys(compData).length;
+
+  Object.entries(compData).forEach(([comp,data],idx)=>{
+    const color=COLORS[comp]||'#1565C0';
+    let {freqs,amp}=computeFFT(data,fs,winType,ymode,oneSided);
+    const mf=[]; const fa=[]; const aa=[];
+    for(let i=0;i<freqs.length;i++){
+      if(freqs[i]>0){mf.push(i);fa.push(freqs[i]);aa.push(amp[i]);}
+    }
+    let aa2=[...aa];
+    if(useKO){
+      const faF=new Float64Array(fa);
+      const aaF=new Float64Array(aa);
+      aa2=Array.from(koSmooth(faF,aaF,b));
+    }
+    traces.push({x:fa,y:aa2,mode:'lines',name:comp,xaxis:'x',yaxis:'y'+(idx===0?'':'2'),
+      line:{color,width:1.2},fill:'tozeroy',
+      fillcolor:`rgba(${hexRgb(color)},0.08)`});
+
+    if(showPk){
+      const pct=aa2.reduce((s,v)=>s+v,0)/aa2.length;
+      const pks=findPeaks(aa2,pct,5);
+      pks.forEach(p=>{
+        peakRows.push({comp,freq:fa[p].toFixed(4),amp:aa2[p].toFixed(5)});
+        traces.push({x:[fa[p],fa[p]],y:[0,aa2[p]],mode:'lines',
+          line:{color,width:1,dash:'dash'},showlegend:false,
+          xaxis:'x',yaxis:'y'+(idx===0?'':'2')});
+        traces.push({x:[fa[p]],y:[aa2[p]],mode:'markers+text',
+          text:[`${fa[p].toFixed(3)}Hz`],textposition:'top right',
+          textfont:{size:9,color},marker:{color,size:5},showlegend:false,
+          xaxis:'x',yaxis:'y'+(idx===0?'':'2')});
+      });
+    }
+  });
+
+  const layout={...PLT,height:200*n+80,showlegend:true,
+    title:{text:'FFT Spectrum'+(useKO?`  |  KO b=${b}`:''),font:{size:12}},
+    xaxis:{...PLT.xaxis,type:logX?'log':'linear',title:'Frequency (Hz)'},
+    yaxis:{...PLT.yaxis,title:ylabel}};
+
+  document.getElementById('fft-title').style.display='block';
+  Plotly.newPlot('plot-fft',traces,layout,{responsive:true,displaylogo:false});
+
+  if(peakRows.length){
+    document.getElementById('peak-table').innerHTML=
+      '<p style="font-size:0.82rem;font-weight:700;margin:0.5rem 0 0.3rem">Detected Peaks</p>'+
+      '<table class="stat-table"><tr><th>Component</th><th>Freq (Hz)</th><th>Amplitude</th></tr>'+
+      peakRows.map(r=>`<tr><td>${r.comp}</td><td>${r.freq}</td><td>${r.amp}</td></tr>`).join('')+
+      '</table>';
+  }
+}
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+function buildMask(freqs,hpOn,hpFreq,lpOn,lpFreq,taper){
+  const mask=new Float64Array(freqs.length).fill(1);
+  for(let i=0;i<freqs.length;i++){
+    const f=freqs[i];
+    if(hpOn){
+      const fstart=Math.max(hpFreq-taper,0);
+      if(f<=fstart) mask[i]=0;
+      else if(f<hpFreq) mask[i]*=0.5*(1-Math.cos(Math.PI*(f-fstart)/Math.max(hpFreq-fstart,1e-10)));
+    }
+    if(lpOn){
+      const fend=lpFreq+taper;
+      if(f>=fend) mask[i]=0;
+      else if(f>lpFreq) mask[i]*=0.5*(1+Math.cos(Math.PI*(f-lpFreq)/Math.max(taper,1e-10)));
+    }
+  }
+  return mask;
+}
+
+function rfft(data){
+  const N=data.length;
+  const Np=nextPow2(N);
+  const re=new Float64Array(Np);
+  const im=new Float64Array(Np);
+  for(let i=0;i<N;i++){re[i]=data[i];}
+  fft(re,im);
+  return {re,im,Np,N};
+}
+
+function irfft(re,im,Np,N){
+  const reC=re.slice(),imC=im.slice();
+  for(let i=1;i<Np/2;i++){reC[Np-i]=reC[i];imC[Np-i]=-imC[i];}
+  fft(imC,reC);
+  const out=new Float64Array(N);
+  for(let i=0;i<N;i++) out[i]=reC[i]/Np;
+  return out;
+}
+
+function runFilter(){
+  if(!RAW){alert('Load a file first');return;}
+  extractComponents();
+  const dt=parseFloat(document.getElementById('dt').value)||0.005;
+  const fs=1/dt;
+  const hpOn=document.getElementById('hp-on').checked;
+  const hpFreq=parseFloat(document.getElementById('hp-freq').value)||0.1;
+  const lpOn=document.getElementById('lp-on').checked;
+  const lpFreq=parseFloat(document.getElementById('lp-freq').value)||25;
+  const taper=parseFloat(document.getElementById('taper').value)||0;
+  normData={}; pgaData={};
+
+  const parts=[];
+  if(hpOn) parts.push(`HP>${hpFreq.toFixed(3)}Hz`);
+  if(lpOn) parts.push(`LP<${lpFreq.toFixed(3)}Hz`);
+  const flabel=parts.join(' + ');
+
+  let html='';
+  Object.entries(compData).forEach(([comp,data])=>{
+    const color=COLORS[comp]||'#1565C0';
+    const N=data.length;
+    const {re,im,Np}=rfft(data);
+    const freqs=new Float64Array(Math.floor(Np/2)+1);
+    for(let k=0;k<=Np/2;k++) freqs[k]=k*fs/Np;
+    const mask=buildMask(freqs,hpOn,hpFreq,lpOn,lpFreq,taper);
+    const reM=re.slice(),imM=im.slice();
+    for(let k=0;k<=Np/2;k++){reM[k]*=mask[k];imM[k]*=mask[k];}
+    const dataFilt=irfft(reM,imM,Np,N);
+    const pga_o=Math.max(...data.map(Math.abs));
+    const pga_f=Math.max(...Array.from(dataFilt).map(Math.abs));
+    const norm=dataFilt.map(v=>pga_f>0?v/pga_f:v);
+    normData[comp]=norm; pgaData[comp]=pga_f;
+
+    const id=`plot-filter-${comp}`;
+    html+=`<div class="plot-title">${comp}  |  PGA: ${pga_o.toFixed(5)} → ${pga_f.toFixed(5)}</div>
+           <div id="${id}" style="margin-bottom:0.5rem"></div>`;
+  });
+
+  document.getElementById('filter-results').innerHTML=html;
+
+  Object.entries(compData).forEach(([comp,data])=>{
+    const color=COLORS[comp]||'#1565C0';
+    const N=data.length;
+    const {re,im,Np}=rfft(data);
+    const freqs=new Float64Array(Math.floor(Np/2)+1);
+    const fs2=1/dt;
+    for(let k=0;k<=Np/2;k++) freqs[k]=k*fs2/Np;
+    const mask=buildMask(freqs,hpOn,hpFreq,lpOn,lpFreq,taper);
+    const reM=re.slice(),imM=im.slice();
+    for(let k=0;k<=Np/2;k++){reM[k]*=mask[k];imM[k]*=mask[k];}
+    const dataFilt=irfft(reM,imM,Np,N);
+    const pga_f=pgaData[comp];
+    const norm=normData[comp];
+
+    const traces=[
+      {x:timeArr,y:Array.from(data),mode:'lines',name:'Original',
+       line:{color:'#AAAAAA',width:0.8},yaxis:'y',xaxis:'x'},
+      {x:timeArr,y:Array.from(dataFilt),mode:'lines',name:'Modified',
+       line:{color,width:1.2},yaxis:'y',xaxis:'x'},
+      {x:timeArr,y:Array.from(dataFilt),mode:'lines',name:'Modified',
+       line:{color:'#2E7D32',width:1.2},fill:'tozeroy',
+       fillcolor:'rgba(46,125,50,0.1)',yaxis:'y2',xaxis:'x2'},
+      {x:timeArr,y:Array.from(norm),mode:'lines',name:'a/PGA',
+       line:{color:'#1565C0',width:1.3},fill:'tozeroy',
+       fillcolor:'rgba(21,101,192,0.08)',yaxis:'y3',xaxis:'x3'},
+      {x:[timeArr[0],timeArr[timeArr.length-1]],y:[1,1],mode:'lines',
+       line:{color:'#C62828',width:1.5,dash:'dash'},name:'+1',yaxis:'y3',xaxis:'x3'},
+      {x:[timeArr[0],timeArr[timeArr.length-1]],y:[-1,-1],mode:'lines',
+       line:{color:'#C62828',width:1.5,dash:'dash'},name:'-1',yaxis:'y3',xaxis:'x3'},
+    ];
+
+    const minDist=Math.max(Math.floor(fs2*0.3),1);
+    const normArr=Array.from(norm);
+    const pks_p=findPeaksSimple(normArr,0.5,minDist);
+    const pks_n=findPeaksSimple(normArr.map(v=>-v),0.5,minDist);
+    pks_p.forEach(p=>{
+      traces.push({x:[timeArr[p]],y:[normArr[p]],mode:'markers',
+        marker:{color:'#1565C0',size:6},showlegend:false,yaxis:'y3',xaxis:'x3'});
+    });
+    pks_n.forEach(p=>{
+      traces.push({x:[timeArr[p]],y:[normArr[p]],mode:'markers',
+        marker:{color:'#C62828',size:6},showlegend:false,yaxis:'y3',xaxis:'x3'});
+    });
+
+    const layout={...PLT,height:720,showlegend:true,
+      grid:{rows:3,columns:1,pattern:'independent'},
+      xaxis:{...PLT.xaxis,title:''},
+      xaxis2:{...PLT.xaxis,title:''},
+      xaxis3:{...PLT.xaxis,title:'Time (s)'},
+      yaxis:{...PLT.yaxis,title:'Acceleration',domain:[0.7,1]},
+      yaxis2:{...PLT.yaxis,title:'Acceleration',domain:[0.37,0.65]},
+      yaxis3:{...PLT.yaxis,title:'a / PGA',domain:[0,0.32],
+        range:[-1.45,1.45],tickvals:[-1,-0.5,0,0.5,1]},
+      annotations:[
+        {text:`<b>${comp} — Original vs Modified</b>`,x:0,xref:'paper',y:1.01,yref:'y domain',
+         showarrow:false,font:{size:11},xanchor:'left'},
+        {text:`<b>Modified Waveform  (${flabel})</b>`,x:0,xref:'paper',y:1.01,yref:'y2 domain',
+         showarrow:false,font:{size:11},xanchor:'left'},
+        {text:`<b>Normalized Acceleration  (a/PGA)  [${flabel}]</b>`,x:0,xref:'paper',y:1.01,yref:'y3 domain',
+         showarrow:false,font:{size:11},xanchor:'left'},
+      ]
+    };
+
+    Plotly.newPlot(`plot-filter-${comp}`,traces,layout,{responsive:true,displaylogo:false});
+  });
+
+  document.getElementById('json-btn').disabled=false;
+}
+
+function findPeaksSimple(arr,minH,minD){
+  const peaks=[];
+  for(let i=1;i<arr.length-1;i++){
+    if(arr[i]>arr[i-1]&&arr[i]>arr[i+1]&&arr[i]>minH){
+      if(!peaks.length||i-peaks[peaks.length-1]>minD) peaks.push(i);
+    }
+  }
+  return peaks;
+}
+
+// ── JSON Export ───────────────────────────────────────────────────────────────
+function exportJSON(){
+  const comp=Object.keys(normData)[0];
+  const dt=parseFloat(document.getElementById('dt').value)||0.005;
+  const hpOn=document.getElementById('hp-on').checked;
+  const hpFreq=parseFloat(document.getElementById('hp-freq').value)||0.1;
+  const lpOn=document.getElementById('lp-on').checked;
+  const lpFreq=parseFloat(document.getElementById('lp-freq').value)||25;
+  const parts=[];
+  if(hpOn) parts.push(`HP>${hpFreq.toFixed(3)}Hz`);
+  if(lpOn) parts.push(`LP<${lpFreq.toFixed(3)}Hz`);
+  const flabel=parts.join(' + ');
+
+  const payload={
+    description:`Normalized Acceleration (a/PGA) | Component: ${comp} | Filter: ${flabel}`,
+    component:comp, filter:flabel,
+    pga:pgaData[comp], fs_hz:1/dt, dt_s:dt,
+    n_samples:normData[comp].length,
+    duration_s:timeArr[timeArr.length-1],
+    units:{time_s:'seconds',norm_accel:'dimensionless (a/PGA) range: ±1',pga:'same unit as input'},
+    data:timeArr.map((t,i)=>({time_s:parseFloat(t.toFixed(6)),norm_accel:parseFloat(normData[comp][i].toFixed(8))}))
+  };
+
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`norm_accel_${comp}.json`; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── AVD ───────────────────────────────────────────────────────────────────────
+function cumTrap(arr,dt){
+  const out=new Float64Array(arr.length);
+  for(let i=1;i<arr.length;i++) out[i]=out[i-1]+(arr[i-1]+arr[i])*dt/2;
+  return out;
+}
+function gradient(arr,dt){
+  const out=new Float64Array(arr.length);
+  out[0]=(arr[1]-arr[0])/dt;
+  out[arr.length-1]=(arr[arr.length-1]-arr[arr.length-2])/dt;
+  for(let i=1;i<arr.length-1;i++) out[i]=(arr[i+1]-arr[i-1])/(2*dt);
+  return out;
+}
+function detrend(arr){
+  const n=arr.length,xi=Array.from({length:n},(_,i)=>i);
+  const mx=xi.reduce((s,v)=>s+v,0)/n;
+  const my=arr.reduce((s,v)=>s+v,0)/n;
+  const num=xi.reduce((s,x,i)=>s+(x-mx)*(arr[i]-my),0);
+  const den=xi.reduce((s,x)=>s+(x-mx)**2,0);
+  const slope=num/den,intercept=my-slope*mx;
+  return arr.map((v,i)=>v-(slope*i+intercept));
+}
+
+function runAVD(){
+  if(!RAW){alert('Load a file first');return;}
+  extractComponents();
+  const dt=parseFloat(document.getElementById('dt').value)||0.005;
+  const inputIdx=['Acceleration (m/s²)','Velocity (m/s)','Displacement (m)']
+    .indexOf(document.getElementById('avd-input').value);
+  const unitSel=document.getElementById('unit-sel').value;
+  const factor=unitSel==='custom'?parseFloat(document.getElementById('custom-factor').value):parseFloat(unitSel);
+  const doDe=document.getElementById('do-detrend').checked;
+  const doDm=document.getElementById('do-demean').checked;
+
+  const sigTypes=[['Acceleration (m/s²)','#1565C0'],['Velocity (m/s)','#2E7D32'],['Displacement (m)','#6A1B9A']];
+  let statsHtml='<table class="stat-table"><tr><th>Component</th><th>PGA (m/s²)</th><th>PGV (m/s)</th><th>PGD (m)</th></tr>';
+  let allHtml='';
+  const csvRows={};
+
+  Object.entries(compData).forEach(([comp,data])=>{
+    let s=data.map(v=>v*factor);
+    if(doDm){const m=s.reduce((a,b)=>a+b,0)/s.length;s=s.map(v=>v-m);}
+    if(doDe) s=detrend(s);
+    let acc,vel,disp;
+    if(inputIdx===0){acc=s;vel=cumTrap(s,dt);disp=cumTrap(vel,dt);}
+    else if(inputIdx===1){vel=s;disp=cumTrap(s,dt);acc=gradient(s,dt);}
+    else{disp=s;vel=gradient(s,dt);acc=gradient(vel,dt);}
+    const pga=Math.max(...acc.map(Math.abs));
+    const pgv=Math.max(...vel.map(Math.abs));
+    const pgd=Math.max(...disp.map(Math.abs));
+    statsHtml+=`<tr><td>${comp}</td><td>${pga.toFixed(6)}</td><td>${pgv.toFixed(6)}</td><td>${pgd.toFixed(6)}</td></tr>`;
+    allHtml+=`<div id="plot-avd-${comp}"></div>`;
+    csvRows[comp]={acc,vel,disp};
+  });
+  statsHtml+='</table>';
+  document.getElementById('avd-stats').innerHTML='<div class="plot-title">Peak Ground Motion</div>'+statsHtml;
+  document.getElementById('plot-avd').innerHTML=allHtml;
+
+  Object.entries(csvRows).forEach(([comp,res])=>{
+    const color=COLORS[comp]||'#1565C0';
+    const traces=sigTypes.map(([title,c],i)=>{
+      const arr=[res.acc,res.vel,res.disp][i];
+      return{x:timeArr,y:Array.from(arr),mode:'lines',name:title,
+        line:{color:c,width:0.9},xaxis:`x${i>0?i+1:''}`,yaxis:`y${i>0?i+1:''}`};
+    });
+    const layout={...PLT,height:600,showlegend:false,
+      grid:{rows:3,columns:1,pattern:'independent'},
+      xaxis:{...PLT.xaxis},xaxis2:{...PLT.xaxis},xaxis3:{...PLT.xaxis,title:'Time (s)'},
+      yaxis:{...PLT.yaxis,title:'Acc (m/s²)',domain:[0.7,1]},
+      yaxis2:{...PLT.yaxis,title:'Vel (m/s)',domain:[0.37,0.65]},
+      yaxis3:{...PLT.yaxis,title:'Disp (m)',domain:[0,0.32]},
+      title:{text:`<b>Component: ${comp}</b>`,font:{size:12}}};
+    Plotly.newPlot(`plot-avd-${comp}`,traces,layout,{responsive:true,displaylogo:false});
+  });
+
+  const expType=document.getElementById('avd-input').value.split(' ')[0].toLowerCase();
+  const k={acceleration:'acc',velocity:'vel',displacement:'disp'}[expType]||'acc';
+  document.getElementById('avd-export').innerHTML=
+    `<button class="btn btn-success" style="width:auto;padding:7px 20px;margin-top:0.5rem" onclick="exportCSV('${k}')">&#8681; Download ${expType}.csv</button>`;
+  window._avdData=csvRows;
+}
+
+function exportCSV(key){
+  if(!window._avdData) return;
+  const rows=['Time_s,'+Object.keys(window._avdData).map(c=>`${c}_${key}`).join(',')];
+  timeArr.forEach((t,i)=>{
+    rows.push([t.toFixed(6),...Object.values(window._avdData).map(r=>r[key][i].toFixed(8))].join(','));
+  });
+  const blob=new Blob([rows.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=`${key}.csv`;a.click();
+}
+
+function hexRgb(hex){
+  const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);
+  return `${r},${g},${b}`;
+}
+</script>
+</body>
+</html>
