@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Seismic Signal Analyzer v1.03</title>
+<title>Seismic Signal Analyzer v1.04</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
@@ -12,9 +12,9 @@ body{font-family:'Georgia',serif;background:#F8F8F6;color:#1A1A1A;font-size:14px
 header{background:#1565C0;color:white;padding:1rem 1.5rem;display:flex;align-items:center;gap:1rem}
 header h1{font-size:1.2rem;font-weight:700;letter-spacing:-0.02em}
 header p{font-size:0.78rem;opacity:0.8;font-family:monospace;margin-top:2px}
-.layout{display:grid;grid-template-columns:280px 1fr;height:calc(100vh - 64px)}
-.sidebar{background:#F0EFE9;border-right:1px solid #DDD;overflow-y:auto;padding:1rem}
-.main{overflow-y:auto;padding:1rem 1.5rem}
+.layout{display:flex;flex-direction:row;height:calc(100vh - 64px);overflow:hidden}
+.sidebar{width:280px;min-width:280px;flex-shrink:0;background:#F0EFE9;border-right:1px solid #DDD;overflow-y:auto;padding:1rem}
+.main{flex:1;overflow-y:auto;padding:1rem 1.5rem;min-width:0}
 .section{margin-bottom:1.2rem}
 .section-title{font-size:0.72rem;font-weight:700;color:#1565C0;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:0.5rem;padding-bottom:0.3rem;border-bottom:1.5px solid #1565C0}
 label{display:block;font-size:0.82rem;color:#555;margin-bottom:2px;margin-top:8px}
@@ -62,7 +62,7 @@ input[type=checkbox]{margin-right:6px}
 
 <header>
   <div>
-    <h1>&#127758; Seismic Signal Analyzer <span style="font-size:0.75rem;opacity:0.75;font-weight:400">v1.03</span></h1>
+    <h1>&#127758; Seismic Signal Analyzer <span style="font-size:0.75rem;opacity:0.75;font-weight:400">v1.04</span></h1>
     <p>Chiang Mai University &nbsp;·&nbsp; FFT · Bandpass Filter · Acc/Vel/Disp</p>
   </div>
 </header>
@@ -111,6 +111,11 @@ input[type=checkbox]{margin-right:6px}
   </div>
 
   <div class="section">
+    <button class="btn btn-primary" style="margin-top:0" onclick="runFFT()">&#9889; Compute FFT</button>
+    <button class="btn btn-success" style="margin-top:6px" onclick="runAVD()">&#128208; Convert Acc→Vel→Disp</button>
+  </div>
+
+  <div class="section">
     <div class="section-title">Konno-Ohmachi</div>
     <label class="check-row"><input type="checkbox" id="use-ko" checked>Enable Smoothing</label>
     <label>Bandwidth b</label>
@@ -122,15 +127,24 @@ input[type=checkbox]{margin-right:6px}
   <div class="section">
     <div class="section-title">&#9729; API Settings</div>
     <label style="font-size:0.82rem;color:#555">API Base URL</label>
-    <input type="text" id="api-url"
-      value="https://fft-earthquake-production.up.railway.app"
-      style="font-size:0.78rem;font-family:monospace">
-    <label style="font-size:0.82rem;color:#555;margin-top:6px">Filename (ไม่ต้องใส่ .json)</label>
+    <div style="display:flex;gap:4px;margin-top:2px">
+      <input type="text" id="api-url"
+        value="https://fft-earthquake-production.up.railway.app"
+        style="font-size:0.78rem;font-family:monospace;flex:1">
+      <button onclick="copyAPILink()" title="Copy API URL"
+        style="padding:4px 8px;border:1px solid #1565C0;border-radius:4px;background:#E3F2FD;color:#1565C0;cursor:pointer;font-size:0.8rem;white-space:nowrap"
+        id="copy-api-btn">&#128203; Copy</button>
+    </div>
+    <div id="copy-api-msg" style="font-size:0.72rem;color:#2E7D32;font-family:monospace;min-height:14px;margin-top:2px"></div>
+    <label style="font-size:0.82rem;color:#555;margin-top:6px">Filename (no .json needed)</label>
     <input type="text" id="api-filename" value="norm_accel_EW"
       style="font-size:0.82rem">
     <div id="api-status" style="font-size:0.75rem;font-family:monospace;
       margin-top:6px;color:#555;min-height:18px"></div>
   </div>
+
+  <div class="section">
+    <div class="section-title">Acc / Vel / Disp</div>
     <label>Input type</label>
     <select id="avd-input"><option>Acceleration (m/s²)</option><option>Velocity (m/s)</option><option>Displacement (m)</option></select>
     <label>Unit factor</label>
@@ -146,35 +160,32 @@ input[type=checkbox]{margin-right:6px}
     <label class="check-row"><input type="checkbox" id="do-demean" checked>Demean</label>
   </div>
 
-</div>
+</div><!-- end sidebar -->
 
-<!-- MAIN -->
+<!-- MAIN (inside .layout) -->
 <div class="main">
 
-  <div id="metrics-row" class="metrics hidden">
-    <div class="metric"><div class="metric-label">Samples</div><div class="metric-value" id="m-samples">—</div></div>
-    <div class="metric"><div class="metric-label">Sampling Rate</div><div class="metric-value" id="m-fs">—</div></div>
-    <div class="metric"><div class="metric-label">Duration</div><div class="metric-value" id="m-dur">—</div></div>
-    <div class="metric"><div class="metric-label">Components</div><div class="metric-value" id="m-comp">—</div></div>
-  </div>
-
-  <div class="tabs">
-    <div class="tab active" onclick="showTab('fft')">&#128202; FFT + Filter</div>
-    <div class="tab" onclick="showTab('avd')">&#128208; Acc / Vel / Disp</div>
-    <div class="tab" onclick="showTab('about')">&#8505; About</div>
-  </div>
-
-  <!-- FFT TAB -->
-  <div class="tab-content active" id="tab-fft">
-    <div id="no-data-msg" class="warning">Upload a signal file or use the Demo button to begin analysis.</div>
-
-    <div id="fft-controls" style="display:block!important;margin-bottom:0.8rem">
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary" style="width:auto;padding:7px 20px;background:#1565C0;color:white;border:none;border-radius:5px;font-size:0.9rem;font-weight:700;cursor:pointer" onclick="runFFT()">&#9889; Compute FFT</button>
-      </div>
+  <!-- Tabs — compact, always visible at top -->
+  <div style="display:flex;align-items:center;gap:1rem;border-bottom:2px solid #DDD;margin-bottom:0.5rem;padding-bottom:0">
+    <div class="tabs" style="border:none;margin:0;flex:1">
+      <div class="tab active" onclick="showTab('fft')">&#128202; FFT + Filter</div>
+      <div class="tab" onclick="showTab('avd')">&#128208; Acc / Vel / Disp</div>
+      <div class="tab" onclick="showTab('about')">&#8505; About</div>
     </div>
+    <!-- Metrics inline with tabs -->
+    <div id="metrics-row" style="display:none;gap:8px;font-family:monospace;font-size:0.75rem;color:#555">
+      <span>&#128202; <b id="m-samples">—</b></span>
+      <span>&#9711; <b id="m-fs">—</b></span>
+      <span>&#9201; <b id="m-dur">—</b></span>
+      <span>&#9881; <b id="m-comp">—</b></span>
+    </div>
+  </div>
 
-    <div id="plot-time" style="min-height:10px"></div>
+  <!-- FFT TAB — graph first, no button taking space -->
+  <div class="tab-content active" id="tab-fft">
+    <div id="no-data-msg" class="warning">Upload a file or click <b>🌍 Use Demo</b> in the sidebar → then click <b>⚡ Compute FFT</b></div>
+    <div id="fft-controls" style="display:none"></div>
+    <div id="plot-time"></div>
     <div id="comp-panels"></div>
   </div>
 
@@ -191,11 +202,26 @@ input[type=checkbox]{margin-right:6px}
 
   <!-- ABOUT TAB -->
   <div class="tab-content" id="tab-about" style="max-width:680px">
-    <h2 style="font-size:1.1rem;margin:0.5rem 0 0.3rem">Seismic Signal Analyzer <span style="color:#1565C0">v1.03</span></h2>
-    <p style="color:#555;font-size:0.88rem;margin-bottom:1rem">Chiang Mai University</p>
+    <h2 style="font-size:1.1rem;margin:0.5rem 0 0.3rem">Seismic Signal Analyzer <span style="color:#1565C0">v1.04</span></h2>
+    <p style="color:#555;font-size:0.88rem;margin-bottom:1rem">Chiang Mai University · Thailand</p>
     <div class="info">Pure browser app — no server required. All processing runs locally in JavaScript.</div>
     <div class="success" style="margin-top:6px">&#127758; <b>Demo File:</b> Mexico Earthquake 1985 (Michoacán) — EW/NS/V components, 5,358 samples at 200 Hz, duration 26.79s</div>
+
     <br>
+    <div style="background:#F3E5F5;border-left:3px solid #6A1B9A;padding:10px 14px;border-radius:0 6px 6px 0;margin-bottom:1rem">
+      <div style="font-size:0.75rem;font-weight:700;color:#6A1B9A;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px">&#127775; Acknowledgements</div>
+      <p style="font-size:0.85rem;color:#333;line-height:1.7;margin-bottom:8px">
+        Special thanks to <b>Mr. Phuttirat Kingkaew</b> for the original Python code prototype for Fast Fourier Transform (FFT) computation,
+        and <b>Mr. Benjapol Pasutarat</b> for the theoretical foundation and technical explanations.
+      </p>
+      <p style="font-size:0.85rem;color:#333;line-height:1.7;margin-bottom:8px">
+        This program was <b>modified by Thepparit Sinthamrongruk</b> to develop a RESTful API interface and deploy the system in Online Mode
+        for integration with hardware devices.
+      </p>
+      <p style="font-size:0.85rem;color:#555;line-height:1.7">
+        Developed under a research project of <b>Chiang Mai University</b>, Thailand.
+      </p>
+    </div>
     <table class="stat-table">
       <tr><th>Feature</th><th>Description</th></tr>
       <tr><td>FFT</td><td>Radix-2 FFT with Hann/Hamming/Blackman/Rectangular window</td></tr>
@@ -220,7 +246,7 @@ input[type=checkbox]{margin-right:6px}
 
 <script>
 const COLORS = {EW:'#1565C0',NS:'#2E7D32',V:'#6A1B9A',ACC:'#1565C0'};
-const VERSION = 'v1.03';
+const VERSION = 'v1.04';
 const PLT = {plot_bgcolor:'white',paper_bgcolor:'#F8F8F6',
   font:{family:'Georgia,serif',size:11,color:'#1A1A1A'},
   margin:{l:55,r:20,t:35,b:45},
@@ -228,6 +254,30 @@ const PLT = {plot_bgcolor:'white',paper_bgcolor:'#F8F8F6',
   yaxis:{showgrid:true,gridcolor:'#EEEEEE',linecolor:'#BDBDBD',mirror:true}};
 
 let RAW=null, compData={}, timeArr=null, normData={}, pgaData={};
+
+// ── Copy API Link ─────────────────────────────────────────────────────────────
+function copyAPILink(){
+  const url=document.getElementById('api-url').value.trim().replace(/\/$/,'');
+  const filename=document.getElementById('api-filename').value.trim()||'norm_accel_EW';
+  const fullUrl=`${url}/results/${filename}.json`;
+  const btn=document.getElementById('copy-api-btn');
+  const msg=document.getElementById('copy-api-msg');
+  const done=()=>{
+    btn.textContent='✅ Copied!';
+    msg.textContent=fullUrl;
+    setTimeout(()=>{btn.textContent='📋 Copy';msg.textContent='';},3000);
+  };
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(fullUrl).then(done).catch(()=>{
+      prompt('Copy this URL:',fullUrl); done();
+    });
+  } else {
+    const ta=document.createElement('textarea');
+    ta.value=fullUrl; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta); done();
+  }
+}
 
 function showTab(id){
   document.querySelectorAll('.tab').forEach((t,i)=>{
@@ -262,9 +312,14 @@ function loadDemo(){
   document.getElementById('cfg-section').style.display='block';
   document.getElementById('acc-col').max=ncols-1;
   document.getElementById('no-data-msg').style.display='none';
-  document.getElementById('fft-controls').classList.remove('hidden');
+  const _fc=document.getElementById('fft-controls'); if(_fc) _fc.style.display='block';
   document.getElementById('avd-msg').style.display='none';
-  document.getElementById('avd-controls').classList.remove('hidden');
+  const _ac=document.getElementById('avd-controls'); if(_ac) _ac.style.display='block';
+  // Reset: show plot-time, clear comp-panels
+  const ptd=document.getElementById('plot-time');
+  if(ptd){ptd.style.display='block'; ptd.innerHTML='';}
+  const cpd=document.getElementById('comp-panels');
+  if(cpd) cpd.innerHTML='';
   updateComponents();
 
   btn.textContent='✅ Mexico Earthquake 1985 (loaded)';
@@ -273,11 +328,9 @@ function loadDemo(){
   btn.style.color='#2E7D32';
   btn.disabled=false;
 
-  // ให้ DOM render เสร็จก่อนค่อย plot time series
   requestAnimationFrame(()=>{
     setTimeout(()=>{
       extractComponents();
-      // Force Plotly to resize after render
       setTimeout(()=>{ window.dispatchEvent(new Event('resize')); }, 200);
     }, 150);
   });
@@ -297,9 +350,14 @@ function parseAndLoad(text, filename){
   document.getElementById('cfg-section').style.display='block';
   document.getElementById('acc-col').max=ncols-1;
   document.getElementById('no-data-msg').style.display='none';
-  document.getElementById('fft-controls').classList.remove('hidden');
+  const _fc=document.getElementById('fft-controls'); if(_fc) _fc.style.display='block';
   document.getElementById('avd-msg').style.display='none';
-  document.getElementById('avd-controls').classList.remove('hidden');
+  const _ac=document.getElementById('avd-controls'); if(_ac) _ac.style.display='block';
+  // Reset: show plot-time, clear comp-panels
+  const ptd=document.getElementById('plot-time');
+  if(ptd){ptd.style.display='block'; ptd.innerHTML='';}
+  const cpd=document.getElementById('comp-panels');
+  if(cpd) cpd.innerHTML='';
   updateComponents();
   // Auto-plot time series after file loads
   requestAnimationFrame(()=>{
@@ -347,7 +405,7 @@ function extractComponents(){
     compData={ACC: RAW.map(r=>r[accCol]||0)};
   }
   const fs=1/dt; const N2=N; const dur=(N2*dt).toFixed(2);
-  document.getElementById('metrics-row').classList.remove('hidden');
+  document.getElementById('metrics-row').style.display='flex';
   document.getElementById('m-samples').textContent=N.toLocaleString();
   document.getElementById('m-fs').textContent=fs.toFixed(1)+' Hz';
   document.getElementById('m-dur').textContent=dur+' s';
@@ -406,6 +464,14 @@ function runFFT(){
   const b=parseFloat(document.getElementById('ko-b').value)||40;
   const showPk=document.getElementById('show-peaks').checked;
   const ylabel={'linear':'Amplitude','db':'Magnitude (dB)','psd':'PSD (units²/Hz)'}[ymode];
+
+  // Hide the combined time series — per-component panels will show individual ones
+  const plotTimeDiv=document.getElementById('plot-time');
+  if(plotTimeDiv) plotTimeDiv.style.display='none';
+
+  // Hide no-data message
+  const noMsg=document.getElementById('no-data-msg');
+  if(noMsg) noMsg.style.display='none';
 
   // Build per-component panels
   const panelsDiv=document.getElementById('comp-panels');
