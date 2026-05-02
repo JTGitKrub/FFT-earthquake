@@ -14,12 +14,13 @@ Deploy:
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import Optional, Literal
 import numpy as np
 from scipy import signal as scipy_signal
-import io, json
+import io, json, os
 
 # ── App Setup ──────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -28,22 +29,30 @@ app = FastAPI(
 ## Seismic Signal Analyzer — RESTful API
 **Chiang Mai University**
 
-Upload a CSV seismic signal file and get Normalized Acceleration (a/PGA) as JSON.
-
-### Workflow
-1. `POST /analyze` — Upload CSV + parameters → get filtered & normalized signal
-2. `GET /health`   — Check API status
+### Endpoints
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/` | API info |
+| `GET` | `/results` | List available pre-computed results |
+| `GET` | `/results/{filename}` | Get a specific pre-computed JSON result |
+| `POST` | `/analyze` | Upload CSV → get normalized acceleration JSON |
+| `POST` | `/fft` | Upload CSV → get FFT spectrum + peaks |
+| `GET` | `/health` | Check API status |
     """,
     version="1.0.0",
 )
 
-# ── CORS (allow all origins for development) ───────────────────────────────────
+# ── CORS ───────────────────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Results folder ─────────────────────────────────────────────────────────────
+RESULTS_DIR = os.path.join(os.path.dirname(__file__), "results")
+os.makedirs(RESULTS_DIR, exist_ok=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -198,14 +207,110 @@ class AnalyzeResponse(BaseModel):
 # ══════════════════════════════════════════════════════════════════════════════
 #  Endpoints
 # ══════════════════════════════════════════════════════════════════════════════
+
 @app.get("/")
 def root():
-    return {"message": "Seismic Signal Analyzer API — Chiang Mai University",
-            "docs": "/docs",
-            "health": "/health",
-            "analyze": "POST /analyze"}
+    """API info and available endpoints"""
+    return {
+        "message": "Seismic Signal Analyzer API — Chiang Mai University",
+        "version": "1.0.0",
+        "endpoints": {
+            "docs":    "/docs",
+            "health":  "/health",
+            "results": "/results",
+            "analyze": "POST /analyze",
+            "fft":     "POST /fft",
+        }
+    }
 
-@app.get("/health", tags=["System"])
+
+@app.get("/results", tags=["Results"])
+def list_results():
+    """
+    ## List Available Pre-computed Results
+
+    Returns a list of all JSON result files stored on the server.
+    Use `GET /results/{filename}` to fetch a specific file.
+    """
+    files = [f for f in os.listdir(RESULTS_DIR) if f.endswith(".json")]
+    return {
+        "count": len(files),
+        "files": files,
+        "usage": "GET /results/{filename}"
+    }
+
+
+@app.get("/results/{filename}", tags=["Results"])
+def get_result(filename: str):
+    """
+    ## Get Pre-computed Result
+
+    Fetch a specific pre-computed normalized acceleration JSON file.
+
+    ### Example
+    ```
+    GET /results/norm_accel_EW.json
+    ```
+    """
+    if not filename.endswith(".json"):
+        filename = filename + ".json"
+
+    # Security: prevent path traversal
+    filename = os.path.basename(filename)
+    filepath = os.path.join(RESULTS_DIR, filename)
+
+    if not os.path.exists(filepath):
+        available = [f for f in os.listdir(RESULTS_DIR) if f.endswith(".json")]
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": f"File '{filename}' not found",
+                "available": available
+            }
+        )
+
+    with open(filepath, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    return JSONResponse(content=data)
+
+
+@app.post("/results/{filename}", tags=["Results"])
+async def save_result(
+    filename: str,
+    file: UploadFile = File(..., description="JSON result file to store")
+):
+    """
+    ## Save a Result File
+
+    Store a pre-computed JSON result file on the server.
+    After saving, it can be retrieved via `GET /results/{filename}`.
+    """
+    if not filename.endswith(".json"):
+        filename = filename + ".json"
+    filename = os.path.basename(filename)
+    filepath = os.path.join(RESULTS_DIR, filename)
+
+    content = await file.read()
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid JSON: {e}")
+
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+    return {
+        "message": f"Saved successfully",
+        "filename": filename,
+        "url": f"/results/{filename}",
+        "n_samples": data.get("n_samples"),
+        "component": data.get("component"),
+        "filter": data.get("filter"),
+    }
+
+
+
 def health():
     """Check API status"""
     return {"status": "ok", "version": "1.0.0",
@@ -225,6 +330,7 @@ async def analyze(
     taper: float = Query(0.0, ge=0, description="Cosine taper width (Hz)"),
     ko_smooth: bool = Query(True, description="Apply Konno-Ohmachi smoothing to FFT"),
     ko_b: float = Query(40.0, gt=0, description="Konno-Ohmachi bandwidth b"),
+    save: bool = Query(False, description="Save result to /results/{component}.json for later retrieval"),
 ):
     """
     ## Analyze Seismic Signal
@@ -335,7 +441,7 @@ async def analyze(
     filter_label = f"HP>{hp_freq:.3f}Hz + LP<{lp_freq:.3f}Hz"
 
     # ── Return response ───────────────────────────────────────────────────────
-    return {
+    result = {
         "description": (
             f"Normalized Acceleration (a/PGA) | "
             f"Component: {comp_name} | Filter: {filter_label}"
@@ -362,6 +468,16 @@ async def analyze(
             for i in range(N)
         ],
     }
+
+    # ── Auto-save if requested ────────────────────────────────────────────────
+    if save:
+        save_filename = f"norm_accel_{comp_name}.json"
+        save_path = os.path.join(RESULTS_DIR, save_filename)
+        with open(save_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        result["saved_as"] = f"/results/{save_filename}"
+
+    return result
 
 
 @app.post("/fft", tags=["Analysis"])
