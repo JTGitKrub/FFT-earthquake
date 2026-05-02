@@ -120,7 +120,17 @@ input[type=checkbox]{margin-right:6px}
 
 
   <div class="section">
-    <div class="section-title">Acc / Vel / Disp</div>
+    <div class="section-title">&#9729; API Settings</div>
+    <label style="font-size:0.82rem;color:#555">API Base URL</label>
+    <input type="text" id="api-url"
+      value="https://fft-earthquake-production.up.railway.app"
+      style="font-size:0.78rem;font-family:monospace">
+    <label style="font-size:0.82rem;color:#555;margin-top:6px">Filename (ไม่ต้องใส่ .json)</label>
+    <input type="text" id="api-filename" value="norm_accel_EW"
+      style="font-size:0.82rem">
+    <div id="api-status" style="font-size:0.75rem;font-family:monospace;
+      margin-top:6px;color:#555;min-height:18px"></div>
+  </div>
     <label>Input type</label>
     <select id="avd-input"><option>Acceleration (m/s²)</option><option>Velocity (m/s)</option><option>Displacement (m)</option></select>
     <label>Unit factor</label>
@@ -460,6 +470,11 @@ function runFFT(){
               id="json-btn-${comp}" disabled onclick="exportJSONComp('${comp}')">
               &#128196; Export JSON (a/PGA)
             </button>
+            <button class="btn" style="width:auto;padding:5px 14px;font-size:0.82rem;
+              color:#1565C0;border-color:#1565C0"
+              id="api-btn-${comp}" disabled onclick="sendToAPI('${comp}')">
+              &#9729; Send to API
+            </button>
           </div>
           <div id="filter-status-${comp}" style="font-size:0.78rem;color:#555;font-family:monospace;margin-top:4px;padding:0 4px"></div>
         </div>
@@ -623,8 +638,11 @@ function applyFilter(comp){
       Math.sqrt(Array.from(data).reduce((s,v)=>s+v*v,0)/N).toFixed(5)} → ${
       Math.sqrt(Array.from(dataFilt).reduce((s,v)=>s+v*v,0)/N).toFixed(5)}`;
 
-  // Enable JSON button
+  // Enable JSON and API buttons
   document.getElementById(`json-btn-${comp}`).disabled=false;
+  document.getElementById(`api-btn-${comp}`).disabled=false;
+  // Update default filename to match component
+  document.getElementById('api-filename').value=`norm_accel_${comp}`;
 
   // Plot filtered results
   const resDiv=document.getElementById(`filter-result-${comp}`);
@@ -680,6 +698,82 @@ function applyFilter(comp){
     showlegend:true,
     legend:{x:1,xanchor:'right',y:1,bgcolor:'rgba(255,255,255,0.8)'}
   },{responsive:true,displaylogo:false});
+}
+
+// ── Send to API ────────────────────────────────────────────────────────────────
+async function sendToAPI(comp){
+  if(!window._normData||!window._normData[comp]){
+    alert('Apply filter first'); return;}
+
+  const baseURL = document.getElementById('api-url').value.trim().replace(/\/$/,'');
+  const filename = document.getElementById('api-filename').value.trim().replace(/\.json$/,'')
+                   || `norm_accel_${comp}`;
+  const apiStatus = document.getElementById('api-status');
+
+  // Build payload (same format as exportJSONComp)
+  const dt=parseFloat(document.getElementById('dt').value)||0.005;
+  const norm=window._normData[comp];
+  const pga=window._pgaData[comp];
+  const hpOn=document.getElementById(`hp-on-${comp}`).checked;
+  const hpFreq=parseFloat(document.getElementById(`hp-freq-${comp}`).value)||0.1;
+  const lpOn=document.getElementById(`lp-on-${comp}`).checked;
+  const lpFreq=parseFloat(document.getElementById(`lp-freq-${comp}`).value)||25;
+  const parts=[];
+  if(hpOn) parts.push(`HP>${hpFreq.toFixed(3)}Hz`);
+  if(lpOn) parts.push(`LP<${lpFreq.toFixed(3)}Hz`);
+  const flabel=parts.join(' + ');
+
+  const payload={
+    description:`Normalized Acceleration (a/PGA) | Component: ${comp} | Filter: ${flabel}`,
+    component:comp, filter:flabel, pga:pga, fs_hz:1/dt, dt_s:dt,
+    n_samples:norm.length, duration_s:timeArr[timeArr.length-1],
+    units:{time_s:'seconds',norm_accel:'dimensionless (a/PGA) ±1',pga:'same unit as input'},
+    data:timeArr.map((t,i)=>({
+      time_s:parseFloat(t.toFixed(6)),
+      norm_accel:parseFloat(norm[i].toFixed(8))
+    }))
+  };
+
+  // Update button state
+  const btn=document.getElementById(`api-btn-${comp}`);
+  btn.textContent='⏳ Sending...';
+  btn.disabled=true;
+  apiStatus.style.color='#555';
+  apiStatus.textContent=`Sending to ${baseURL}/results/${filename}.json ...`;
+
+  try {
+    // Convert JSON to Blob → FormData (API expects multipart/form-data)
+    const jsonBlob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const formData=new FormData();
+    formData.append('file', jsonBlob, `${filename}.json`);
+
+    const response=await fetch(`${baseURL}/results/${filename}.json`,{
+      method:'POST',
+      body:formData
+    });
+
+    if(!response.ok){
+      const err=await response.json();
+      throw new Error(err.detail||`HTTP ${response.status}`);
+    }
+
+    const result=await response.json();
+    btn.textContent='✅ Sent!';
+    btn.style.color='#2E7D32';
+    btn.style.borderColor='#2E7D32';
+    btn.disabled=false;
+    apiStatus.style.color='#2E7D32';
+    apiStatus.textContent=
+      `✅ Saved as: ${result.url}  |  `+
+      `GET ${baseURL}${result.url}`;
+
+  } catch(err){
+    btn.textContent='☁ Send to API';
+    btn.disabled=false;
+    apiStatus.style.color='#C62828';
+    apiStatus.textContent=`❌ Error: ${err.message}`;
+    console.error(err);
+  }
 }
 
 // ── Export JSON per Component ──────────────────────────────────────────────────
