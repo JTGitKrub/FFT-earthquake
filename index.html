@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<!-- saved from url=(0046)file:///Users/thepparit/Downloads/index_8.html -->
-<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
+<html lang="en">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Seismic Signal Analyzer</title>
-<script src="./index_files/plotly.min.js"></script><style id="plotly.js-style-global"></style>
-<script src="./index_files/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Georgia',serif;background:#F8F8F6;color:#1A1A1A;font-size:14px}
@@ -62,7 +62,7 @@ input[type=checkbox]{margin-right:6px}
 
 <header>
   <div>
-    <h1>🌎 Seismic Signal Analyzer</h1>
+    <h1>&#127758; Seismic Signal Analyzer</h1>
     <p>Chiang Mai University &nbsp;·&nbsp; FFT · Bandpass Filter · Acc/Vel/Disp</p>
   </div>
 </header>
@@ -76,11 +76,12 @@ input[type=checkbox]{margin-right:6px}
     <div class="section-title">Load Signal File</div>
     <label class="upload-area" for="fileInput">
       <input type="file" id="fileInput" accept=".csv,.txt,.dat,.out" onchange="loadFile(event)" style="display:none">
-      <div class="upload-icon">📂</div>
+      <div class="upload-icon">&#128194;</div>
       <div class="upload-text">Click to upload CSV / TXT / DAT</div>
     </label>
-    <button class="btn" style="margin-top:8px;background:#E3F2FD;border-color:#1565C0;color:#1565C0;font-size:0.82rem" onclick="loadDemo()">
-      🌎 Use Demo: Mexico Earthquake 1985
+    <button class="btn" style="margin-top:8px;background:#E3F2FD;border-color:#1565C0;color:#1565C0;font-size:0.82rem"
+      onclick="loadDemo()">
+      &#127758; Use Demo: Mexico Earthquake 1985
     </button>
     <div id="file-info"></div>
   </div>
@@ -104,14 +105,14 @@ input[type=checkbox]{margin-right:6px}
     <select id="fft-window"><option>hann</option><option>hamming</option><option>blackman</option><option>rectangular</option></select>
     <label>Y-axis</label>
     <select id="ymode"><option value="linear">Amplitude (Linear)</option><option value="db">Amplitude (dB)</option><option value="psd">PSD</option></select>
-    <label class="check-row"><input type="checkbox" id="log-x" checked="">Log X-axis</label>
-    <label class="check-row"><input type="checkbox" id="one-sided" checked="">One-sided Spectrum</label>
-    <label class="check-row"><input type="checkbox" id="show-peaks" checked="">Show Peaks</label>
+    <label class="check-row"><input type="checkbox" id="log-x" checked>Log X-axis</label>
+    <label class="check-row"><input type="checkbox" id="one-sided" checked>One-sided Spectrum</label>
+    <label class="check-row"><input type="checkbox" id="show-peaks" checked>Show Peaks</label>
   </div>
 
   <div class="section">
     <div class="section-title">Konno-Ohmachi</div>
-    <label class="check-row"><input type="checkbox" id="use-ko" checked="">Enable Smoothing</label>
+    <label class="check-row"><input type="checkbox" id="use-ko" checked>Enable Smoothing</label>
     <label>Bandwidth b</label>
     <input type="number" id="ko-b" value="40" min="5" max="200">
   </div>
@@ -119,27 +120,20 @@ input[type=checkbox]{margin-right:6px}
 
 
   <div class="section">
-    <div class="section-title">☁ API Settings</div>
-    <label style="font-size:0.82rem;color:#555">API Base URL</label>
-    <input type="text" id="api-url" value="https://fft-earthquake-production.up.railway.app" style="font-size:0.78rem;font-family:monospace">
-    <label style="font-size:0.82rem;color:#555;margin-top:6px">Filename (ไม่ต้องใส่ .json)</label>
-    <input type="text" id="api-filename" value="norm_accel_EW" style="font-size:0.82rem">
-    <div id="api-status" style="font-size:0.75rem;font-family:monospace;
-      margin-top:6px;color:#555;min-height:18px"></div>
-  </div>
+    <div class="section-title">Acc / Vel / Disp</div>
     <label>Input type</label>
     <select id="avd-input"><option>Acceleration (m/s²)</option><option>Velocity (m/s)</option><option>Displacement (m)</option></select>
     <label>Unit factor</label>
     <select id="unit-sel" onchange="onUnitChange()">
       <option value="1">1.0 (no conversion)</option>
-      <option value="9.81" selected="">9.81 (g → m/s²)</option>
+      <option value="9.81" selected>9.81 (g → m/s²)</option>
       <option value="0.01">0.01 (cm/s² → m/s²)</option>
       <option value="0.001">0.001 (mm/s² → m/s²)</option>
       <option value="custom">Custom</option>
     </select>
     <input type="number" id="custom-factor" value="1" style="display:none;margin-top:4px">
-    <label class="check-row"><input type="checkbox" id="do-detrend" checked="">Detrend</label>
-    <label class="check-row"><input type="checkbox" id="do-demean" checked="">Demean</label>
+    <label class="check-row"><input type="checkbox" id="do-detrend" checked>Detrend</label>
+    <label class="check-row"><input type="checkbox" id="do-demean" checked>Demean</label>
   </div>
 
 </div>
@@ -155,9 +149,9 @@ input[type=checkbox]{margin-right:6px}
   </div>
 
   <div class="tabs">
-    <div class="tab active" onclick="showTab(&#39;fft&#39;)">📊 FFT + Filter</div>
-    <div class="tab" onclick="showTab(&#39;avd&#39;)">📐 Acc / Vel / Disp</div>
-    <div class="tab" onclick="showTab(&#39;about&#39;)">ℹ About</div>
+    <div class="tab active" onclick="showTab('fft')">&#128202; FFT + Filter</div>
+    <div class="tab" onclick="showTab('avd')">&#128208; Acc / Vel / Disp</div>
+    <div class="tab" onclick="showTab('about')">&#8505; About</div>
   </div>
 
   <!-- FFT TAB -->
@@ -166,7 +160,7 @@ input[type=checkbox]{margin-right:6px}
 
     <div id="fft-controls" class="hidden">
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem">
-        <button class="btn btn-primary" style="width:auto;padding:7px 20px" onclick="runFFT()">⚡ Compute FFT</button>
+        <button class="btn btn-primary" style="width:auto;padding:7px 20px" onclick="runFFT()">&#9889; Compute FFT</button>
       </div>
     </div>
 
@@ -178,7 +172,7 @@ input[type=checkbox]{margin-right:6px}
   <div class="tab-content" id="tab-avd">
     <div id="avd-msg" class="warning">Upload a signal file and click Convert.</div>
     <div id="avd-controls" class="hidden" style="margin-bottom:1rem">
-      <button class="btn btn-primary" style="width:auto;padding:7px 20px" onclick="runAVD()">⚡ Convert Acc → Vel → Disp</button>
+      <button class="btn btn-primary" style="width:auto;padding:7px 20px" onclick="runAVD()">&#9889; Convert Acc → Vel → Disp</button>
     </div>
     <div id="avd-stats"></div>
     <div id="plot-avd"></div>
@@ -190,29 +184,29 @@ input[type=checkbox]{margin-right:6px}
     <h2 style="font-size:1.1rem;margin:0.5rem 0 0.3rem">Seismic Signal Analyzer</h2>
     <p style="color:#555;font-size:0.88rem;margin-bottom:1rem">Chiang Mai University</p>
     <div class="info">Pure browser app — no server required. All processing runs locally in JavaScript.</div>
-    <div class="success" style="margin-top:6px">🌎 <b>Demo File:</b> Mexico Earthquake 1985 (Michoacán) — EW/NS/V components, 5,358 samples at 200 Hz, duration 26.79s</div>
+    <div class="success" style="margin-top:6px">&#127758; <b>Demo File:</b> Mexico Earthquake 1985 (Michoacán) — EW/NS/V components, 5,358 samples at 200 Hz, duration 26.79s</div>
     <br>
     <table class="stat-table">
-      <tbody><tr><th>Feature</th><th>Description</th></tr>
+      <tr><th>Feature</th><th>Description</th></tr>
       <tr><td>FFT</td><td>Radix-2 FFT with Hann/Hamming/Blackman/Rectangular window</td></tr>
       <tr><td>Konno-Ohmachi</td><td>Standard seismic smoothing (b=40 default)</td></tr>
       <tr><td>Bandpass Filter</td><td>HP/LP via FFT masking with cosine taper</td></tr>
       <tr><td>Normalized Plot</td><td>a/PGA between ±1 with peak markers</td></tr>
       <tr><td>JSON Export</td><td>Normalized acceleration + time for further analysis</td></tr>
       <tr><td>Acc/Vel/Disp</td><td>Trapezoidal integration from acceleration</td></tr>
-    </tbody></table>
+    </table>
     <br>
     <table class="stat-table">
-      <tbody><tr><th>Columns</th><th>Interpretation</th></tr>
+      <tr><th>Columns</th><th>Interpretation</th></tr>
       <tr><td>1 column</td><td>[ACC]</td></tr>
       <tr><td>2 columns</td><td>[Time, ACC]</td></tr>
       <tr><td>3 columns</td><td>[EW, NS, V]</td></tr>
       <tr><td>4+ columns</td><td>[Time, EW, NS, V, ...]</td></tr>
-    </tbody></table>
+    </table>
   </div>
 
 </div>
-
+</div>
 
 <script>
 const COLORS = {EW:'#1565C0',NS:'#2E7D32',V:'#6A1B9A',ACC:'#1565C0'};
@@ -251,6 +245,7 @@ function loadDemo(){
   const btn=document.querySelector('[onclick="loadDemo()"]');
   btn.textContent='⏳ Loading...';
   btn.disabled=true;
+  // Use embedded data — works offline and in any environment
   RAW=DEMO_RAW;
   const ncols=RAW[0].length;
   document.getElementById('file-info').innerHTML=
@@ -262,10 +257,6 @@ function loadDemo(){
   document.getElementById('avd-msg').style.display='none';
   document.getElementById('avd-controls').classList.remove('hidden');
   updateComponents();
-
-  // Auto extract and plot time series
-  extractComponents();
-
   btn.textContent='✅ Mexico Earthquake 1985 (loaded)';
   btn.style.background='#E8F5E9';
   btn.style.borderColor='#2E7D32';
@@ -434,15 +425,6 @@ function runFFT(){
           <div style="font-size:0.78rem;font-weight:700;color:#1565C0;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">
             🔁 Bandpass Filter — ${comp}
           </div>
-          <div style="font-size:0.78rem;color:#555;margin-bottom:6px;padding:4px 4px;background:#E3F2FD;border-radius:4px;border-left:3px solid #1565C0">
-            📌 <b>คลิกบน FFT Spectrum</b> เพื่อ Auto-fill ความถี่ HP/LP อัตโนมัติ
-          </div>
-          <div class="filter-row" style="margin-bottom:4px">
-            <span style="font-size:0.78rem;color:#555;">Margin ±</span>
-            <input type="number" id="margin-${comp}" value="0.001" step="0.001" min="0.0001" style="width:90px;font-size:0.82rem;padding:3px 6px">
-            <span style="color:#888;font-size:0.8rem">Hz</span>
-            <span style="font-size:0.75rem;color:#888;margin-left:8px">(HP = peak − margin, LP = peak + margin)</span>
-          </div>
           <div class="filter-row">
             <label class="check-row">
               <input type="checkbox" id="hp-on-${comp}" checked>
@@ -468,11 +450,6 @@ function runFFT(){
             <button class="btn btn-orange" style="width:auto;padding:5px 14px;font-size:0.82rem"
               id="json-btn-${comp}" disabled onclick="exportJSONComp('${comp}')">
               &#128196; Export JSON (a/PGA)
-            </button>
-            <button class="btn" style="width:auto;padding:5px 14px;font-size:0.82rem;
-              color:#1565C0;border-color:#1565C0"
-              id="api-btn-${comp}" disabled onclick="sendToAPI('${comp}')">
-              &#9729; Send to API
             </button>
           </div>
           <div id="filter-status-${comp}" style="font-size:0.78rem;color:#555;font-family:monospace;margin-top:4px;padding:0 4px"></div>
@@ -511,70 +488,11 @@ function runFFT(){
     }
     Plotly.newPlot(`fft-${comp}`,fftTraces,{
       ...PLT,height:220,showlegend:false,
-      title:{text:`<b>FFT Spectrum — ${comp}</b>${useKO?`  |  KO b=${b}`:''}  ← คลิกเพื่อเลือกความถี่`,font:{size:11,color}},
+      title:{text:`<b>FFT Spectrum — ${comp}</b>${useKO?`  |  KO b=${b}`:''}`,font:{size:11,color}},
       xaxis:{...PLT.xaxis,type:logX?'log':'linear',title:'Frequency (Hz)'},
       yaxis:{...PLT.yaxis,title:ylabel}
     },{responsive:true,displaylogo:false});
-
-    // ── Click-to-fill HP/LP from FFT chart ──────────────────────────────────
-    document.getElementById(`fft-${comp}`).on('plotly_click',function(data){
-      if(!data.points||!data.points.length) return;
-      const clickedFreq=data.points[0].x;
-      if(!clickedFreq||clickedFreq<=0) return;
-      const margin=parseFloat(document.getElementById(`margin-${comp}`).value)||0.001;
-      const hp=(clickedFreq-margin).toFixed(4);
-      const lp=(clickedFreq+margin).toFixed(4);
-      document.getElementById(`hp-freq-${comp}`).value=hp;
-      document.getElementById(`lp-freq-${comp}`).value=lp;
-      // Visual feedback
-      const status=document.getElementById(`filter-status-${comp}`);
-      status.style.color='#1565C0';
-      status.textContent=`📌 Auto-filled: HP=${hp} Hz  |  LP=${lp} Hz  (Peak ≈ ${clickedFreq.toFixed(4)} Hz)`;
-    });
   });
-}
-
-// ── Bluestein FFT — exact N-point DFT for any N (matches numpy.fft exactly) ──
-function bluesteinFFT(xr, xi, inverse=false){
-  const N=xr.length;
-  const sign=inverse?1:-1;
-  // Chirp: W[n]=e^{i*sign*π*n²/N}
-  const wr=new Float64Array(N), wi=new Float64Array(N);
-  for(let n=0;n<N;n++){
-    const a=sign*Math.PI*n*n/N;
-    wr[n]=Math.cos(a); wi[n]=Math.sin(a);
-  }
-  const M=nextPow2(2*N-1);
-  // a[n] = x[n]*W[n]
-  const ar=new Float64Array(M), ai=new Float64Array(M);
-  for(let n=0;n<N;n++){
-    ar[n]=xr[n]*wr[n]-xi[n]*wi[n];
-    ai[n]=xr[n]*wi[n]+xi[n]*wr[n];
-  }
-  // b: chirp kernel conj(W[n]) with wrap-around
-  const br=new Float64Array(M), bi=new Float64Array(M);
-  for(let n=0;n<N;n++){
-    br[n]=wr[n]; bi[n]=-wi[n];
-    if(n>0){br[M-n]=wr[n]; bi[M-n]=-wi[n];}
-  }
-  // Convolution: FFT(a)*FFT(b), then IFFT
-  fft(ar,ai); fft(br,bi);
-  for(let i=0;i<M;i++){
-    const re=ar[i]*br[i]-ai[i]*bi[i];
-    const im=ar[i]*bi[i]+ai[i]*br[i];
-    ar[i]=re; ai[i]=im;
-  }
-  for(let i=0;i<M;i++) ai[i]=-ai[i];
-  fft(ar,ai);
-  for(let i=0;i<M;i++){ar[i]/=M; ai[i]=-ai[i]/M;}
-  // Multiply by W[k] and scale
-  const yr=new Float64Array(N), yi=new Float64Array(N);
-  const sc=inverse?1/N:1;
-  for(let k=0;k<N;k++){
-    yr[k]=(ar[k]*wr[k]-ai[k]*wi[k])*sc;
-    yi[k]=(ar[k]*wi[k]+ai[k]*wr[k])*sc;
-  }
-  return {yr,yi};
 }
 
 // ── Apply Filter per Component ────────────────────────────────────────────────
@@ -596,30 +514,15 @@ function applyFilter(comp){
   if(lpOn) parts.push(`LP<${lpFreq.toFixed(3)}Hz`);
   const flabel=parts.join(' + ');
 
-  // ── Exact N-point DFT via Bluestein (matches Python numpy.fft exactly) ──
+  // Filter via FFT masking
   const N=data.length;
-  const halfN=Math.floor(N/2)+1;
-
-  // Forward N-point DFT
-  const {yr:Xr, yi:Xi}=bluesteinFFT(Float64Array.from(data), new Float64Array(N));
-
-  // Build mask at N-resolution (df=fs/N) — identical to Python
-  const freqsN=new Float64Array(halfN);
-  for(let k=0;k<halfN;k++) freqsN[k]=k*fs/N;
-  const maskN=buildMask(freqsN,hpOn,hpFreq,lpOn,lpFreq,taper);
-
-  // Apply mask — preserve Hermitian symmetry for real IDFT
-  const Yr=Xr.slice(), Yi=Xi.slice();
-  for(let k=0;k<halfN;k++){
-    Yr[k]*=maskN[k]; Yi[k]*=maskN[k];
-  }
-  for(let k=1;k<halfN-(N%2===0?1:0);k++){
-    Yr[N-k]=Yr[k]; Yi[N-k]=-Yi[k];
-  }
-
-  // Inverse N-point DFT
-  const {yr:dataFiltArr}=bluesteinFFT(Yr,Yi,true);
-  const dataFilt=dataFiltArr;
+  const {re,im,Np}=rfft(data);
+  const freqsR=new Float64Array(Math.floor(Np/2)+1);
+  for(let k=0;k<=Np/2;k++) freqsR[k]=k*fs/Np;
+  const mask=buildMask(freqsR,hpOn,hpFreq,lpOn,lpFreq,taper);
+  const reM=re.slice(),imM=im.slice();
+  for(let k=0;k<=Np/2;k++){reM[k]*=mask[k];imM[k]*=mask[k];}
+  const dataFilt=irfft(reM,imM,Np,N);
 
   const pga_o=Math.max(...Array.from(data).map(Math.abs));
   const pga_f=Math.max(...Array.from(dataFilt).map(Math.abs));
@@ -637,11 +540,8 @@ function applyFilter(comp){
       Math.sqrt(Array.from(data).reduce((s,v)=>s+v*v,0)/N).toFixed(5)} → ${
       Math.sqrt(Array.from(dataFilt).reduce((s,v)=>s+v*v,0)/N).toFixed(5)}`;
 
-  // Enable JSON and API buttons
+  // Enable JSON button
   document.getElementById(`json-btn-${comp}`).disabled=false;
-  document.getElementById(`api-btn-${comp}`).disabled=false;
-  // Update default filename to match component
-  document.getElementById('api-filename').value=`norm_accel_${comp}`;
 
   // Plot filtered results
   const resDiv=document.getElementById(`filter-result-${comp}`);
@@ -697,82 +597,6 @@ function applyFilter(comp){
     showlegend:true,
     legend:{x:1,xanchor:'right',y:1,bgcolor:'rgba(255,255,255,0.8)'}
   },{responsive:true,displaylogo:false});
-}
-
-// ── Send to API ────────────────────────────────────────────────────────────────
-async function sendToAPI(comp){
-  if(!window._normData||!window._normData[comp]){
-    alert('Apply filter first'); return;}
-
-  const baseURL = document.getElementById('api-url').value.trim().replace(/\/$/,'');
-  const filename = document.getElementById('api-filename').value.trim().replace(/\.json$/,'')
-                   || `norm_accel_${comp}`;
-  const apiStatus = document.getElementById('api-status');
-
-  // Build payload (same format as exportJSONComp)
-  const dt=parseFloat(document.getElementById('dt').value)||0.005;
-  const norm=window._normData[comp];
-  const pga=window._pgaData[comp];
-  const hpOn=document.getElementById(`hp-on-${comp}`).checked;
-  const hpFreq=parseFloat(document.getElementById(`hp-freq-${comp}`).value)||0.1;
-  const lpOn=document.getElementById(`lp-on-${comp}`).checked;
-  const lpFreq=parseFloat(document.getElementById(`lp-freq-${comp}`).value)||25;
-  const parts=[];
-  if(hpOn) parts.push(`HP>${hpFreq.toFixed(3)}Hz`);
-  if(lpOn) parts.push(`LP<${lpFreq.toFixed(3)}Hz`);
-  const flabel=parts.join(' + ');
-
-  const payload={
-    description:`Normalized Acceleration (a/PGA) | Component: ${comp} | Filter: ${flabel}`,
-    component:comp, filter:flabel, pga:pga, fs_hz:1/dt, dt_s:dt,
-    n_samples:norm.length, duration_s:timeArr[timeArr.length-1],
-    units:{time_s:'seconds',norm_accel:'dimensionless (a/PGA) ±1',pga:'same unit as input'},
-    data:timeArr.map((t,i)=>({
-      time_s:parseFloat(t.toFixed(6)),
-      norm_accel:parseFloat(norm[i].toFixed(8))
-    }))
-  };
-
-  // Update button state
-  const btn=document.getElementById(`api-btn-${comp}`);
-  btn.textContent='⏳ Sending...';
-  btn.disabled=true;
-  apiStatus.style.color='#555';
-  apiStatus.textContent=`Sending to ${baseURL}/results/${filename}.json ...`;
-
-  try {
-    // Convert JSON to Blob → FormData (API expects multipart/form-data)
-    const jsonBlob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-    const formData=new FormData();
-    formData.append('file', jsonBlob, `${filename}.json`);
-
-    const response=await fetch(`${baseURL}/results/${filename}.json`,{
-      method:'POST',
-      body:formData
-    });
-
-    if(!response.ok){
-      const err=await response.json();
-      throw new Error(err.detail||`HTTP ${response.status}`);
-    }
-
-    const result=await response.json();
-    btn.textContent='✅ Sent!';
-    btn.style.color='#2E7D32';
-    btn.style.borderColor='#2E7D32';
-    btn.disabled=false;
-    apiStatus.style.color='#2E7D32';
-    apiStatus.textContent=
-      `✅ Saved as: ${result.url}  |  `+
-      `GET ${baseURL}${result.url}`;
-
-  } catch(err){
-    btn.textContent='☁ Send to API';
-    btn.disabled=false;
-    apiStatus.style.color='#C62828';
-    apiStatus.textContent=`❌ Error: ${err.message}`;
-    console.error(err);
-  }
 }
 
 // ── Export JSON per Component ──────────────────────────────────────────────────
@@ -1051,6 +875,5 @@ function hexRgb(hex){
   return `${r},${g},${b}`;
 }
 </script>
-
-
-</body></html>
+</body>
+</html>
