@@ -229,7 +229,10 @@ const PLT = {plot_bgcolor:'white',paper_bgcolor:'#F8F8F6',
 
 let RAW=null, compData={}, timeArr=null, normData={}, pgaData={};
 
-// ── Tab ──────────────────────────────────────────────────────────────────────
+// ── Auto-load demo on startup ────────────────────────────────────────────────
+window.addEventListener('load', function(){
+  setTimeout(loadDemo, 500);
+});
 function showTab(id){
   document.querySelectorAll('.tab').forEach((t,i)=>{
     t.classList.toggle('active',['fft','avd','about'][i]===id)});
