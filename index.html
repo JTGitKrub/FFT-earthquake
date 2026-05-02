@@ -166,9 +166,9 @@ input[type=checkbox]{margin-right:6px}
 
   <!-- FFT TAB -->
   <div class="tab-content active" id="tab-fft">
-    <div id="no-data-msg" class="warning">Upload a signal file to begin analysis.</div>
+    <div id="no-data-msg" class="warning">Upload a signal file or use the Demo button to begin analysis.</div>
 
-    <div id="fft-controls" class="hidden">
+    <div id="fft-controls">
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem">
         <button class="btn btn-primary" style="width:auto;padding:7px 20px" onclick="runFFT()">&#9889; Compute FFT</button>
       </div>
@@ -180,8 +180,8 @@ input[type=checkbox]{margin-right:6px}
 
   <!-- AVD TAB -->
   <div class="tab-content" id="tab-avd">
-    <div id="avd-msg" class="warning">Upload a signal file and click Convert.</div>
-    <div id="avd-controls" class="hidden" style="margin-bottom:1rem">
+    <div id="avd-msg" class="warning">Upload a signal file or use the Demo button to begin.</div>
+    <div id="avd-controls" style="margin-bottom:1rem">
       <button class="btn btn-primary" style="width:auto;padding:7px 20px" onclick="runAVD()">&#9889; Convert Acc → Vel → Disp</button>
     </div>
     <div id="avd-stats"></div>
@@ -273,9 +273,13 @@ function loadDemo(){
   btn.style.color='#2E7D32';
   btn.disabled=false;
 
-  // ให้ DOM render เสร็จก่อนค่อย plot
+  // ให้ DOM render เสร็จก่อนค่อย plot time series
   requestAnimationFrame(()=>{
-    setTimeout(()=>{ runFFT(); }, 150);
+    setTimeout(()=>{
+      extractComponents();
+      // Force Plotly to resize after render
+      setTimeout(()=>{ window.dispatchEvent(new Event('resize')); }, 200);
+    }, 150);
   });
 }
 
@@ -297,9 +301,12 @@ function parseAndLoad(text, filename){
   document.getElementById('avd-msg').style.display='none';
   document.getElementById('avd-controls').classList.remove('hidden');
   updateComponents();
-  // Auto-plot after file loads
+  // Auto-plot time series after file loads
   requestAnimationFrame(()=>{
-    setTimeout(()=>{ runFFT(); }, 150);
+    setTimeout(()=>{
+      extractComponents();
+      setTimeout(()=>{ window.dispatchEvent(new Event('resize')); }, 200);
+    }, 150);
   });
 }
 
@@ -350,6 +357,10 @@ function extractComponents(){
 
 // ── Time Series — แยก subplot ทีละ Component ─────────────────────────────────
 function plotTimeSeries(){
+  const div=document.getElementById('plot-time');
+  if(!div) return;
+  // Ensure div is visible with min height
+  div.style.minHeight='200px';
   const comps=Object.entries(compData);
   const n=comps.length;
   const traces=[];
