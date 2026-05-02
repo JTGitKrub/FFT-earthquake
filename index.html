@@ -275,7 +275,7 @@ function loadDemo(){
 
   // ให้ DOM render เสร็จก่อนค่อย plot
   requestAnimationFrame(()=>{
-    setTimeout(()=>{ extractComponents(); }, 100);
+    setTimeout(()=>{ runFFT(); }, 150);
   });
 }
 
@@ -297,6 +297,10 @@ function parseAndLoad(text, filename){
   document.getElementById('avd-msg').style.display='none';
   document.getElementById('avd-controls').classList.remove('hidden');
   updateComponents();
+  // Auto-plot after file loads
+  requestAnimationFrame(()=>{
+    setTimeout(()=>{ runFFT(); }, 150);
+  });
 }
 
 // ── Load File ────────────────────────────────────────────────────────────────
