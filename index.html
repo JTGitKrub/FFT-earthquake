@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Seismic Signal Analyzer v1.01</title>
+<title>Seismic Signal Analyzer v1.02</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
@@ -62,7 +62,7 @@ input[type=checkbox]{margin-right:6px}
 
 <header>
   <div>
-    <h1>&#127758; Seismic Signal Analyzer <span style="font-size:0.75rem;opacity:0.75;font-weight:400">v1.01</span></h1>
+    <h1>&#127758; Seismic Signal Analyzer <span style="font-size:0.75rem;opacity:0.75;font-weight:400">v1.02</span></h1>
     <p>Chiang Mai University &nbsp;·&nbsp; FFT · Bandpass Filter · Acc/Vel/Disp</p>
   </div>
 </header>
@@ -191,7 +191,7 @@ input[type=checkbox]{margin-right:6px}
 
   <!-- ABOUT TAB -->
   <div class="tab-content" id="tab-about" style="max-width:680px">
-    <h2 style="font-size:1.1rem;margin:0.5rem 0 0.3rem">Seismic Signal Analyzer <span style="color:#1565C0">v1.01</span></h2>
+    <h2 style="font-size:1.1rem;margin:0.5rem 0 0.3rem">Seismic Signal Analyzer <span style="color:#1565C0">v1.02</span></h2>
     <p style="color:#555;font-size:0.88rem;margin-bottom:1rem">Chiang Mai University</p>
     <div class="info">Pure browser app — no server required. All processing runs locally in JavaScript.</div>
     <div class="success" style="margin-top:6px">&#127758; <b>Demo File:</b> Mexico Earthquake 1985 (Michoacán) — EW/NS/V components, 5,358 samples at 200 Hz, duration 26.79s</div>
@@ -220,7 +220,7 @@ input[type=checkbox]{margin-right:6px}
 
 <script>
 const COLORS = {EW:'#1565C0',NS:'#2E7D32',V:'#6A1B9A',ACC:'#1565C0'};
-const VERSION = 'v1.01';
+const VERSION = 'v1.02';
 const PLT = {plot_bgcolor:'white',paper_bgcolor:'#F8F8F6',
   font:{family:'Georgia,serif',size:11,color:'#1A1A1A'},
   margin:{l:55,r:20,t:35,b:45},
@@ -267,14 +267,16 @@ function loadDemo(){
   document.getElementById('avd-controls').classList.remove('hidden');
   updateComponents();
 
-  // Auto extract and plot time series
-  extractComponents();
-
   btn.textContent='✅ Mexico Earthquake 1985 (loaded)';
   btn.style.background='#E8F5E9';
   btn.style.borderColor='#2E7D32';
   btn.style.color='#2E7D32';
   btn.disabled=false;
+
+  // ให้ DOM render เสร็จก่อนค่อย plot
+  requestAnimationFrame(()=>{
+    setTimeout(()=>{ extractComponents(); }, 100);
+  });
 }
 
 function parseAndLoad(text, filename){
