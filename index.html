@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Seismic Signal Analyzer v1.04</title>
+<meta name="description" content="Browser-based FFT and bandpass-filter analyser for earthquake acceleration data, with Konno–Ohmachi spectral smoothing and JSON export for motion-platform integration.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Seismic Signal Analyzer v1.04 — Chiang Mai University</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <style>
@@ -56,6 +57,11 @@ input[type=checkbox]{margin-right:6px}
 .filter-row input[type=number]{width:100px;padding:4px 7px}
 .filter-row label{margin:0;font-size:0.82rem}
 .filter-row .check-row{margin:0}
+
+/* Screenshot mode */
+body.screenshot-mode .sidebar { background: #FAFAFA; }
+body.screenshot-mode .comp-panel { border: 1.5px solid #222; }
+body.screenshot-mode header { -webkit-print-color-adjust: exact; }
 </style>
 </head>
 <body>
@@ -124,6 +130,17 @@ input[type=checkbox]{margin-right:6px}
 
 
 
+
+  <div class="section">
+    <div class="section-title">&#128247; Screenshot Mode</div>
+    <label class="check-row">
+      <input type="checkbox" id="screenshot-mode" onchange="toggleScreenshotMode()">
+      Publication mode (for figures)
+    </label>
+    <div id="screenshot-hint" style="font-size:0.72rem;color:#888;margin-top:4px;display:none">
+      Toolbar hidden · white background · larger fonts
+    </div>
+  </div>
   <div class="section">
     <div class="section-title">&#9729; API Settings</div>
     <label style="font-size:0.82rem;color:#555">API Base URL</label>
@@ -248,12 +265,43 @@ input[type=checkbox]{margin-right:6px}
 const COLORS = {EW:'#1565C0',NS:'#2E7D32',V:'#6A1B9A',ACC:'#1565C0'};
 const VERSION = 'v1.04';
 const PLT = {plot_bgcolor:'white',paper_bgcolor:'#F8F8F6',
-  font:{family:'Georgia,serif',size:11,color:'#1A1A1A'},
+  font:{family:'Arial, Helvetica, sans-serif',size:11,color:'#1A1A1A'},
   margin:{l:55,r:20,t:35,b:45},
   xaxis:{showgrid:true,gridcolor:'#EEEEEE',linecolor:'#BDBDBD',mirror:true},
   yaxis:{showgrid:true,gridcolor:'#EEEEEE',linecolor:'#BDBDBD',mirror:true}};
 
 let RAW=null, compData={}, timeArr=null, normData={}, pgaData={};
+
+
+
+// ── Toggle FFT hover tooltip ─────────────────────────────────────────────────
+function toggleHover(comp){
+  const el = document.getElementById(`fft-${comp}`);
+  if(!el || !el._fullLayout) return;
+  const hide = document.getElementById(`hide-hover-${comp}`)?.checked;
+  Plotly.relayout(el, {hovermode: hide ? false : 'closest'});
+}
+
+// ── Screenshot / Publication Mode ────────────────────────────────────────────
+function toggleScreenshotMode(){
+  const on = document.getElementById('screenshot-mode').checked;
+  document.getElementById('screenshot-hint').style.display = on ? 'block' : 'none';
+  // Scale up Plotly font sizes
+  document.querySelectorAll('[id^="fft-"],[id^="ts-"],[id="plot-time"],[id="comp-panels"] .js-plotly-plot')
+    .forEach(el => {
+      if(el._fullLayout) Plotly.relayout(el, {'font.size': on ? 15 : 13});
+    });
+  // Apply to all visible plotly divs
+  document.querySelectorAll('.js-plotly-plot').forEach(el=>{
+    Plotly.relayout(el, {
+      'font.size': on ? 15 : 13,
+      'paper_bgcolor': 'white',
+      'plot_bgcolor': 'white',
+    });
+  });
+  // Body class for CSS
+  document.body.classList.toggle('screenshot-mode', on);
+}
 
 // ── Copy API Link ─────────────────────────────────────────────────────────────
 function copyAPILink(){
@@ -413,7 +461,7 @@ function extractComponents(){
   plotTimeSeries();
 }
 
-// ── Time Series — แยก subplot ทีละ Component ─────────────────────────────────
+// ── Time Series — individual subplot per component ───────────────────────────
 function plotTimeSeries(){
   const div=document.getElementById('plot-time');
   if(!div) return;
@@ -437,7 +485,7 @@ function plotTimeSeries(){
       xaxis:xi,yaxis:yi
     });
     layout[xi]={...PLT.xaxis,title:i===n-1?'Time (s)':''};
-    layout[yi]={...PLT.yaxis,title:'Acc'};
+    layout[yi]={...PLT.yaxis,title:'Acceleration'};
     layout['annotations']=layout['annotations']||[];
     layout['annotations'].push({
       text:`<b>Component: ${c}</b>`,
@@ -447,7 +495,12 @@ function plotTimeSeries(){
       xanchor:'left'
     });
   });
-  Plotly.newPlot('plot-time',traces,layout,{responsive:true,displaylogo:false});
+  Plotly.newPlot('plot-time',traces,layout,{
+      responsive:true,
+      displayModeBar:false,
+      staticPlot:false,
+      toImageButtonOptions:{format:'png',filename:'seismic_chart',height:600,width:1200,scale:2}
+    });
 }
 
 // ── FFT + Per-Component Filter ────────────────────────────────────────────────
@@ -508,9 +561,9 @@ function runFFT(){
     panel.innerHTML=`
       <div class="comp-panel-header" style="background:${color}15;border-bottom:2px solid ${color}">
         <span style="color:${color};font-size:1.1rem">■</span>
-        <span style="color:${color}">Component: ${comp}</span>
+        <span style="color:${color}">${comp} component</span>
         ${peakInfo.length?`<span style="font-size:0.78rem;color:#777;font-family:monospace;margin-left:auto">
-          Top peaks: ${peakInfo.map(p=>`${p.f.toFixed(3)}Hz`).join(' · ')}
+          Dominant peaks: ${peakInfo.map(p=>`${p.f.toFixed(3)} Hz`).join(' · ')}
         </span>`:''}
       </div>
       <div class="comp-panel-body">
@@ -522,7 +575,11 @@ function runFFT(){
             🔁 Bandpass Filter — ${comp}
           </div>
           <div style="font-size:0.78rem;color:#555;margin-bottom:6px;padding:4px 4px;background:#E3F2FD;border-radius:4px;border-left:3px solid #1565C0">
-            📌 <b>คลิกบน FFT Spectrum</b> เพื่อ Auto-fill ความถี่ HP/LP อัตโนมัติ
+            📌 Click on the FFT spectrum below to auto-fill HP/LP cutoff frequencies
+          <label class="check-row" style="margin-top:6px;font-size:0.75rem;color:#555">
+            <input type="checkbox" id="hide-hover-${comp}" onchange="toggleHover('${comp}')">
+            Hide hover tooltip (for screenshots)
+          </label>
           </div>
           <div class="filter-row" style="margin-bottom:4px">
             <span style="font-size:0.78rem;color:#555;">Margin ±</span>
@@ -576,10 +633,15 @@ function runFFT(){
       line:{color,width:0.8}
     }],{
       ...PLT,height:200,showlegend:false,
-      title:{text:`<b>Time Series — ${comp}</b>`,font:{size:11,color}},
+      title:{text:`Time series — ${comp} component`,font:{size:13,color:'#222222',family:'Arial'}},
       xaxis:{...PLT.xaxis,title:'Time (s)'},
-      yaxis:{...PLT.yaxis,title:'Acc'}
-    },{responsive:true,displaylogo:false});
+      yaxis:{...PLT.yaxis,title:'Acceleration'}
+    },{
+      responsive:true,
+      displayModeBar:false,
+      staticPlot:false,
+      toImageButtonOptions:{format:'png',filename:'seismic_chart',height:600,width:1200,scale:2}
+    });
 
     // Plot FFT
     const fftTraces=[{
@@ -598,10 +660,15 @@ function runFFT(){
     }
     Plotly.newPlot(`fft-${comp}`,fftTraces,{
       ...PLT,height:220,showlegend:false,
-      title:{text:`<b>FFT Spectrum — ${comp}</b>${useKO?`  |  KO b=${b}`:''}  ← คลิกเพื่อเลือกความถี่`,font:{size:11,color}},
+      title:{text:`FFT spectrum — ${comp} component${useKO?` (Konno\u2013Ohmachi smoothing, b\u00a0=\u00a0${b})`:''}`,font:{size:13,color:'#222222',family:'Arial'}},
       xaxis:{...PLT.xaxis,type:logX?'log':'linear',title:'Frequency (Hz)'},
       yaxis:{...PLT.yaxis,title:ylabel}
-    },{responsive:true,displaylogo:false});
+    },{
+      responsive:true,
+      displayModeBar:false,
+      staticPlot:false,
+      toImageButtonOptions:{format:'png',filename:'seismic_chart',height:600,width:1200,scale:2}
+    });
 
     // ── Click-to-fill HP/LP from FFT chart ──────────────────────────────────
     document.getElementById(`fft-${comp}`).on('plotly_click',function(data){
@@ -616,7 +683,7 @@ function runFFT(){
       // Visual feedback
       const status=document.getElementById(`filter-status-${comp}`);
       status.style.color='#1565C0';
-      status.textContent=`📌 Auto-filled: HP=${hp} Hz  |  LP=${lp} Hz  (Peak ≈ ${clickedFreq.toFixed(4)} Hz)`;
+      status.textContent=`📌 Auto-filled — HP = ${hp} Hz  |  LP = ${lp} Hz  (peak ≈ ${clickedFreq.toFixed(4)} Hz)`;
     });
   });
 }
@@ -749,7 +816,7 @@ function applyFilter(comp){
     {x:timeArr,y:norm,mode:'lines',line:{color:'#1565C0',width:1.2},
      fill:'tozeroy',fillcolor:'rgba(21,101,192,0.07)',name:'a/PGA',xaxis:'x2',yaxis:'y2'},
     {x:[timeArr[0],timeArr[timeArr.length-1]],y:[1,1],mode:'lines',
-     line:{color:'#C62828',width:1.5,dash:'dash'},name:`+1 (PGA=${pga_f.toFixed(5)})`,
+     line:{color:'#C62828',width:1.5,dash:'dash'},name:`+1 (PGA = ${pga_f.toFixed(5)})`,
      xaxis:'x2',yaxis:'y2'},
     {x:[timeArr[0],timeArr[timeArr.length-1]],y:[-1,-1],mode:'lines',
      line:{color:'#C62828',width:1.5,dash:'dash'},name:'−1',xaxis:'x2',yaxis:'y2'},
@@ -774,16 +841,21 @@ function applyFilter(comp){
       range:[-1.45,1.45],tickvals:[-1,-0.5,0,0.5,1],
       ticktext:['-1.0','-0.5','0.0','+0.5','+1.0']},
     annotations:[
-      {text:`<b>${comp} — Original vs Modified  (${flabel})</b>`,
+      {text:`${comp} component — original vs. filtered  (${flabel})`,
        x:0,xref:'paper',y:1.02,yref:'paper',showarrow:false,
        font:{size:11,color},xanchor:'left'},
-      {text:`<b>Normalized Acceleration  a/PGA  [${flabel}]</b>`,
+      {text:`Normalised acceleration  a/PGA  [${flabel}]`,
        x:0,xref:'paper',y:0.46,yref:'paper',showarrow:false,
        font:{size:11,color:'#1565C0'},xanchor:'left'},
     ],
     showlegend:true,
     legend:{x:1,xanchor:'right',y:1,bgcolor:'rgba(255,255,255,0.8)'}
-  },{responsive:true,displaylogo:false});
+  },{
+      responsive:true,
+      displayModeBar:false,
+      staticPlot:false,
+      toImageButtonOptions:{format:'png',filename:'seismic_chart',height:600,width:1200,scale:2}
+    });
 }
 
 // ── Send to API ────────────────────────────────────────────────────────────────
@@ -1064,7 +1136,12 @@ function runAVD(){
       yaxis2:{...PLT.yaxis,title:'Vel (m/s)',domain:[0.37,0.65]},
       yaxis3:{...PLT.yaxis,title:'Disp (m)',domain:[0,0.32]},
       title:{text:`<b>Component: ${comp}</b>`,font:{size:12}}};
-    Plotly.newPlot(`plot-avd-${comp}`,traces,layout,{responsive:true,displaylogo:false});
+    Plotly.newPlot(`plot-avd-${comp}`,traces,layout,{
+      responsive:true,
+      displayModeBar:false,
+      staticPlot:false,
+      toImageButtonOptions:{format:'png',filename:'seismic_chart',height:600,width:1200,scale:2}
+    });
   });
 
   const expType=document.getElementById('avd-input').value.split(' ')[0].toLowerCase();
